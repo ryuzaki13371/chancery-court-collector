@@ -1,0 +1,48 @@
+name: Weekly Chancery Court name collection
+
+# Runs the collector automatically every Monday, and can also be run by hand
+# from the Actions tab (the "Run workflow" button). No server / VPS needed —
+# GitHub runs it for free in the cloud.
+
+on:
+  schedule:
+    - cron: "0 11 * * 1"   # every Monday 11:00 UTC (~6 AM US Central)
+  workflow_dispatch: {}     # manual "Run workflow" button
+
+permissions:
+  contents: write           # let the job commit the updated CSV back
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies (poppler for PDFs + requests)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y poppler-utils
+          pip install requests
+
+      - name: Run the collector
+        run: python ChanceryCourtCollector.py
+
+      - name: Save the result as a downloadable file
+        uses: actions/upload-artifact@v4
+        with:
+          name: chancery-court-names
+          path: ChanceryCourt_Names.csv
+
+      - name: Commit the updated names back to the repo
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add ChanceryCourt_Names.csv
+          git diff --staged --quiet || git commit -m "Update docket names ($(date -u +%Y-%m-%d))"
+          git push
