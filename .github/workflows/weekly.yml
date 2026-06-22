@@ -7,7 +7,12 @@ name: Weekly Chancery Court name collection
 on:
   schedule:
     - cron: "0 11 * * 1"   # every Monday 11:00 UTC (~6 AM US Central)
-  workflow_dispatch: {}     # manual "Run workflow" button
+  workflow_dispatch:        # manual run / triggered by the Telegram bot
+    inputs:
+      chat_id:
+        description: "Telegram chat to send results to (blank = default)"
+        required: false
+        default: ""
 
 permissions:
   contents: write           # let the job commit the updated CSV back
@@ -42,7 +47,7 @@ jobs:
       - name: Send the results to Telegram
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_CHAT_ID: ${{ github.event.inputs.chat_id || secrets.TELEGRAM_CHAT_ID }}
         run: |
           COUNT=$(($(wc -l < ChanceryCourt_Names.csv) - 1))
           curl -sS "https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendDocument" \
