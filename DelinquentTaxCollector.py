@@ -219,16 +219,37 @@ def main():
             time.sleep(THROTTLE)
         else:
             owner, status = "", "land (no street #) - not searched"
-        out.append([collected, r["paid"], r["docket"], r["item"], r["address"],
-                    r["parcel"], r["bid"], owner, status])
+        sale = "Redeemed (paid)" if r["paid"] else "Active — going to sale"
+        out.append([sale, r["address"], r["bid"], owner, friendly_lookup(status),
+                    r["parcel"], r["docket"], r["item"], collected])
         print(f"  {r['address'][:30]:30} {r['bid']:>12}  -> {owner[:30] or status}")
+
+    # Leads first: active (still going to sale) on top, redeemed below.
+    out.sort(key=lambda x: 0 if x[0].startswith("Active") else 1)
 
     with open(OUTPUT_CSV, "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
-        w.writerow(["Collected On", "Paid?", "Docket", "Item #", "Property Address",
-                    "Parcel", "Minimum Bid", "Owner (from Trustee)", "Status"])
+        w.writerow(["Sale Status", "Property Address", "Minimum Bid", "Owner (from Trustee)",
+                    "Lookup", "Parcel", "Docket", "Item #", "Collected On"])
         w.writerows(out)
     print(f"\nDone. {len(out)} rows -> {OUTPUT_CSV}")
+
+
+def friendly_lookup(s):
+    """Plain-English version of the lookup result for the sheet."""
+    if s.startswith("owner found"):
+        return "Owner found"
+    if s.startswith("multiple"):
+        return "Multiple owners"
+    if s.startswith("complex"):
+        return "Multiple at address"
+    if s.startswith("land"):
+        return "Vacant land"
+    if s.startswith("no"):
+        return "Not found"
+    if s.startswith("site error"):
+        return "Site error"
+    return s
 
 
 if __name__ == "__main__":

@@ -198,20 +198,39 @@ def main():
     for o in obits:
         nm = reformat_name(o["rawName"])
         if not nm:
-            rows.append([today, o["date"], o["rawName"], "", "", "unparseable name", "", o["link"]])
+            rows.append([today, o["date"], o["rawName"], "", "", "", "Name unclear", "", o["link"]])
             continue
         addrs, status = lookup_address(session, nm["last"], nm["first"])
+        primary = addrs[0] if addrs else ""                  # one clean address per row
+        others = "; ".join(addrs[1:]) if len(addrs) > 1 else ""
         rows.append([today, o["date"], o["rawName"], nm["display"],
-                     "  |  ".join(addrs), status, ", ".join(nm["flags"]), o["link"]])
+                     primary, others, friendly_status(status), ", ".join(nm["flags"]), o["link"]])
         print(f"  {o['rawName'][:32]:32} -> {nm['display'][:22]:22} {status}")
         time.sleep(THROTTLE)
 
     with open(OUTPUT_CSV, "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
-        w.writerow(["Collected On", "Obit Date", "Obituary Name", "Search Name",
-                    "Property Address", "Status", "Notes", "Source Link"])
+        w.writerow(["Collected On", "Obit Date", "Obituary Name", "Search Name (Last First)",
+                    "Property Address", "Other Possible Addresses", "Match", "Notes", "Source Link"])
         w.writerows(rows)
     print(f"\nDone. {len(rows)} rows written to:\n  {OUTPUT_CSV}")
+
+
+def friendly_status(s):
+    """Turn the internal status code into plain English for the sheet."""
+    if s.startswith("matched"):
+        return "Matched"
+    if s.startswith("multiple"):
+        return "Multiple — review"
+    if s.startswith("possible"):
+        return "Possible — verify"
+    if s.startswith("common name"):
+        return "Common name — skipped"
+    if s.startswith("no match"):
+        return "No match"
+    if s.startswith("site error"):
+        return "Site error — will retry"
+    return s
 
 
 if __name__ == "__main__":

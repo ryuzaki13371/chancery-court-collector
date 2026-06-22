@@ -62,5 +62,5 @@ jobs:
           SHEET_ID: ${{ secrets.SHEET_ID }}
           CSV: Obituary_Addresses.csv
           TAB: "Obituaries"
-          KEY_COL: "7"          # Source Link (unique per obituary)
+          KEY_COL: "8"          # Source Link (unique per obituary)
         run: python tools/to_sheet.py
