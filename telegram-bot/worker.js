@@ -1,11 +1,12 @@
 /**
  * Lead Collector — Telegram button bot (Cloudflare Worker)
  * --------------------------------------------------------
- * Free, serverless, always-on (no VPS). It listens for taps/commands and
- * triggers the GitHub Actions, which scrape and send the file back to Telegram.
+ * Free, serverless, always-on (no VPS). Listens for taps/commands and triggers
+ * the GitHub Actions, which scrape and send the file back to Telegram.
  *
- * Flow:  user taps a button or menu command  ->  this Worker  ->
- *        GitHub Action runs  ->  CSV delivered to the chat that asked.
+ * Anyone can use it: searching the bot, pressing Start, and tapping a button
+ * works for any Telegram user. Pressing Start also subscribes that person to
+ * the weekly auto-delivery (handled by the subscribe.yml workflow).
  *
  * Set these in the Worker's Settings -> Variables (see DEPLOY.md):
  *   BOT_TOKEN       (secret)  Telegram bot token from @BotFather
@@ -47,16 +48,38 @@ function tg(env, method, body) {
   });
 }
 
+// Fire a GitHub Actions workflow_dispatch (used to run collectors and to subscribe).
+function dispatch(env, workflow, inputs) {
+  return fetch(
+    `https://api.github.com/repos/${env.GH_REPO}/actions/workflows/${workflow}/dispatches`,
+    {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${env.GH_TOKEN}`,
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "lead-collector-bot",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ ref: "main", inputs }),
+    }
+  );
+}
+
 async function onMessage(msg, env) {
   const chatId = msg.chat.id;
-  // strip a "@BotName" suffix that Telegram adds to commands in groups
   const cmd = (msg.text || "").trim().toLowerCase().split("@")[0];
   if (cmd === "/start" || cmd === "/menu") {
     await sendMenu(env, chatId);
+    // Subscribe this chat to the weekly auto-delivery (fire and forget).
+    const who = [msg.chat.first_name, msg.chat.username].filter(Boolean).join(" @");
+    await dispatch(env, "subscribe.yml", { chat_id: String(chatId), name: who || "" });
   } else if (cmd === "/dockets") {
     await trigger(env, "dockets", chatId);
   } else if (cmd === "/obituaries") {
     await trigger(env, "obituaries", chatId);
+  } else if (cmd === "/stop") {
+    await dispatch(env, "subscribe.yml", { chat_id: String(chatId), name: "", action: "remove" });
+    await tg(env, "sendMessage", { chat_id: chatId, text: "🔕 You're unsubscribed from the weekly auto-send. Tap /start to rejoin." });
   } else {
     await tg(env, "sendMessage", { chat_id: chatId, text: "Send /start to see the menu." });
   }
@@ -70,7 +93,7 @@ async function onCallback(cq, env) {
 function sendMenu(env, chatId) {
   return tg(env, "sendMessage", {
     chat_id: chatId,
-    text: "👋 *Lead Collector*\n\nTap a button (or use the ☰ menu) to pull the latest list. It arrives here as a file in a minute or two.",
+    text: "👋 *Lead Collector*\n\nTap a button (or use the ☰ menu) to pull the latest list — it arrives here as a file in a minute or two. You'll also get a fresh copy automatically every week.",
     parse_mode: "Markdown",
     reply_markup: {
       inline_keyboard: [
@@ -89,19 +112,7 @@ async function trigger(env, choice, chatId) {
     chat_id: chatId,
     text: `⏳ Pulling the latest ${label}… a minute or two, then the file lands here.`,
   });
-  const resp = await fetch(
-    `https://api.github.com/repos/${env.GH_REPO}/actions/workflows/${wf}/dispatches`,
-    {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${env.GH_TOKEN}`,
-        "Accept": "application/vnd.github+json",
-        "User-Agent": "lead-collector-bot",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ ref: "main", inputs: { chat_id: String(chatId) } }),
-    }
-  );
+  const resp = await dispatch(env, wf, { chat_id: String(chatId) });
   if (!resp.ok) {
     await tg(env, "sendMessage", {
       chat_id: chatId,

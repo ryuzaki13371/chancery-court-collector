@@ -1,0 +1,10 @@
+# Cloudflare Worker config for the Lead Collector bot.
+# Deploy from this folder with:  npx wrangler deploy
+# (Secrets BOT_TOKEN, GH_TOKEN, WEBHOOK_SECRET are set separately — see DEPLOY.md.)
+
+name = "lead-collector-bot"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+
+[vars]
+GH_REPO = "ryuzaki13371/chancery-court-collector"

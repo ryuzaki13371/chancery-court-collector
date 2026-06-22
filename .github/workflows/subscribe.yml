@@ -1,0 +1,53 @@
+name: Subscribe a chat to weekly delivery
+
+# Called by the Telegram bot when someone presses /start (or /stop).
+# Keeps subscribers.txt — the list of chats the weekly jobs deliver to.
+
+on:
+  workflow_dispatch:
+    inputs:
+      chat_id:
+        description: "Telegram chat id"
+        required: true
+      name:
+        description: "Display name (for the log only)"
+        required: false
+        default: ""
+      action:
+        description: "add (default) or remove"
+        required: false
+        default: "add"
+
+permissions:
+  contents: write
+
+concurrency: subscribe-list   # serialize so commits never collide
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Update the subscriber list
+        run: |
+          CHAT="${{ github.event.inputs.chat_id }}"
+          ACTION="${{ github.event.inputs.action }}"
+          touch subscribers.txt
+          if [ "$ACTION" = "remove" ]; then
+            grep -vxF "$CHAT" subscribers.txt > subscribers.tmp || true
+            mv subscribers.tmp subscribers.txt
+            echo "Removed $CHAT"
+          else
+            if grep -qxF "$CHAT" subscribers.txt; then
+              echo "$CHAT already subscribed — nothing to do"
+              exit 0
+            fi
+            echo "$CHAT" >> subscribers.txt
+            echo "Added $CHAT (${{ github.event.inputs.name }})"
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add subscribers.txt
+          git diff --staged --quiet || git commit -m "subscribers: $ACTION $CHAT"
+          git push

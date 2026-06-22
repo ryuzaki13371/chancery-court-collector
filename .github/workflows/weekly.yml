@@ -46,14 +46,14 @@ jobs:
 
       - name: Send the results to Telegram
         env:
-          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ github.event.inputs.chat_id || secrets.TELEGRAM_CHAT_ID }}
+          BOT_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          CHAT_ID: ${{ github.event.inputs.chat_id }}            # set = on-demand tap; blank = weekly -> all subscribers
+          DEFAULT_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          FILE: ChanceryCourt_Names.csv
         run: |
           COUNT=$(($(wc -l < ChanceryCourt_Names.csv) - 1))
-          curl -sS "https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendDocument" \
-            -F "chat_id=${TELEGRAM_CHAT_ID}" \
-            -F "document=@ChanceryCourt_Names.csv" \
-            -F "caption=📋 Chancery Court leads — $(date -u +%Y-%m-%d) — ${COUNT} names"
+          CAPTION="📋 Chancery Court leads — $(date -u +%Y-%m-%d) — ${COUNT} names" \
+            python tools/notify.py
 
       - name: Commit the updated names back to the repo
         run: |

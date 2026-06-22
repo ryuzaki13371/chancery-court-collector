@@ -1,52 +1,50 @@
-# Deploy the Telegram button-bot (free, ~10 minutes)
+# Lead Collector bot — how it's deployed
 
-This makes the bot interactive: the user taps **Start**, sees buttons, taps one,
-and the latest list arrives in their chat. It runs free on Cloudflare Workers —
-no server, no VPS.
+The bot runs free on **Cloudflare Workers** (serverless, always-on, no VPS).
 
 ```
-user taps button → Cloudflare Worker → triggers GitHub Action → file sent to that chat
+user taps a button / menu command → Cloudflare Worker → triggers a GitHub Action
+        → the collector runs → the CSV is sent back to that chat on Telegram
 ```
 
-## You need
-- A free **Cloudflare** account (https://dash.cloudflare.com/sign-up)
-- A **GitHub token** for the bot to start the Actions (steps below)
+Pressing **/start** also subscribes that chat to the **weekly auto-delivery**
+(via `subscribe.yml`, which keeps `subscribers.txt`). Anyone can use the bot —
+just search its username on Telegram and press Start.
 
 ---
 
-## Step 1 — Make the GitHub token (for the bot)
-1. GitHub → **Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token**
-2. **Repository access:** Only select repositories → `chancery-court-collector`
-3. **Permissions → Repository permissions → Actions:** set to **Read and write**
-4. Generate, copy the token (starts with `github_pat_…`). This one is *minimal* —
-   it can only start Actions on this one repo, nothing else.
+## Files
+- `worker.js` — the bot logic (this folder)
+- `wrangler.toml` — Worker config (name, the `GH_REPO` variable)
 
-## Step 2 — Create the Worker
-1. Cloudflare dashboard → **Workers & Pages → Create → Worker**
-2. Name it `lead-collector-bot` → **Deploy** (the default hello-world)
-3. **Edit code** → delete everything → paste the contents of `worker.js` → **Deploy**
-4. Copy the Worker URL (looks like `https://lead-collector-bot.<you>.workers.dev`)
+## Deploy / redeploy (from this folder)
+```
+export CLOUDFLARE_API_TOKEN=...      # token with "Workers Scripts: Edit"
+export CLOUDFLARE_ACCOUNT_ID=72919424b1ed06727230cb4fa444bd2b
+npx wrangler deploy
+```
 
-## Step 3 — Add the variables
-Worker → **Settings → Variables and Secrets** → add these, then **Deploy**:
+## Secrets (set once, stored encrypted on the Worker)
+```
+echo "<telegram bot token>"   | npx wrangler secret put BOT_TOKEN
+echo "<github fine-grained>"  | npx wrangler secret put GH_TOKEN      # Actions: read & write on the repo
+echo "<random string>"        | npx wrangler secret put WEBHOOK_SECRET
+```
+`GH_REPO` is a plain var in `wrangler.toml` (not secret).
 
-| Name | Type | Value |
-|------|------|-------|
-| `BOT_TOKEN` | Secret | your Telegram bot token |
-| `GH_TOKEN` | Secret | the `github_pat_…` from Step 1 |
-| `GH_REPO` | Text | `ryuzaki13371/chancery-court-collector` |
-| `WEBHOOK_SECRET` | Secret | any random string (e.g. mash the keyboard) |
-
-## Step 4 — Point Telegram at the Worker
-Send me the **Worker URL** and the **WEBHOOK_SECRET** and I'll connect it, or run
-this yourself (fill in the three values):
-
+## Connect Telegram to the Worker (once)
 ```
 curl "https://api.telegram.org/bot<BOT_TOKEN>/setWebhook" \
-  -d "url=<WORKER_URL>" \
+  -d "url=https://lead-collector-bot.<account>.workers.dev" \
   -d "secret_token=<WEBHOOK_SECRET>"
 ```
 
-## Done
-Open the bot, send **/start**, tap a button — the file arrives in a minute or two.
-Scheduled weekly runs keep working exactly as before; this just adds on-demand taps.
+## Bot commands (shown in the ☰ menu)
+- `/start` — show the menu **and** subscribe to weekly auto-delivery
+- `/dockets` — pull the latest court docket names now
+- `/obituaries` — pull the latest obituary → address list now
+- `/stop` — unsubscribe from the weekly auto-delivery
+
+## GitHub secrets the Actions need
+- `TELEGRAM_TOKEN` — the bot token (for sending files)
+- `TELEGRAM_CHAT_ID` — fallback recipient if `subscribers.txt` is empty
