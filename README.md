@@ -1,33 +1,41 @@
-# Chancery Court Docket Name Collector
+# Lead Collector
 
-Pulls individual case-party names from the Hamilton County Chancery Court
-**Current Motion Call Docket** PDFs and saves them to `ChanceryCourt_Names.csv`.
+Automations that turn Hamilton County (TN) public records into lead lists and
+deliver them to Telegram as a neat **PDF** + a **CSV** — free, no server.
 
-## What it does
-1. Opens https://www.hamiltontn.gov/ChanceryCourt_Dockets.aspx
-2. Finds the links labeled **Current Motion Call Docket Part 1** and **Part 2**
-   (by their label, so it always grabs the current week — no stale links).
-3. Downloads both PDFs and extracts the individual party names.
-4. Writes them to `ChanceryCourt_Names.csv` (columns: Docket, Docket Date, Name).
+## What it collects
+| Task | Source | Output |
+|---|---|---|
+| **Court Dockets** | Chancery Court "Current Motion Call Docket" PDFs (Part 1 & 2) | case-party names |
+| **Obituary → Addresses** | chattanoogan.com obituaries → Trustee property site | name + property address |
+| **Tax Sale → Owners** | Delinquent Tax Sale List PDF → Trustee site (by address + parcel) | address, parcel, min bid, current owner |
 
-It deliberately **ignores** the *Procedural Steps List* and *Motion Call
-Schedule* links — those contain no case names.
+Each collector is a small Python script (`*Collector.py`). `tools/csv_to_pdf.py`
+renders any result CSV into a tidy PDF; `tools/notify.py` sends the files to Telegram.
 
 ## How it runs
-- **Automatically** every Monday (see `.github/workflows/weekly.yml`) — GitHub
-  runs it in the cloud for free, no server needed.
-- **On demand** — go to the **Actions** tab → *Weekly Chancery Court name
-  collection* → **Run workflow**.
+- **Automatically every Monday** (Court Dockets + Obituary → Addresses) via GitHub
+  Actions — free, runs in the cloud.
+- **On demand** via the Telegram bot buttons / commands, or the **Actions** tab →
+  *Run workflow*. (Tax Sale is on-demand only — it does ~140 lookups.)
 
-Each run:
-- updates `ChanceryCourt_Names.csv` in this repo, and
-- uploads the CSV as a downloadable artifact on the run page.
+Results are **delivered to Telegram and uploaded as run artifacts** — the lead data
+is **not** committed to this repo (this repo is public; only the code lives here).
 
-## Run it locally (optional)
-Requires `python3`, `requests`, and `pdftotext` (poppler-utils):
+## The Telegram bot
+A Cloudflare Worker (`telegram-bot/`) listens for button taps / commands and triggers
+the right workflow, delivering the file to whoever asked. Pressing **/start** also
+subscribes that chat to the weekly auto-delivery. See `telegram-bot/DEPLOY.md`.
+
+## Run a collector locally
+Requires `python3`, `requests`, `reportlab`, and `pdftotext` (poppler-utils):
 
 ```
-pip install requests
-sudo apt-get install -y poppler-utils   # Debian/Ubuntu
-python3 ChanceryCourtCollector.py
+pip install requests reportlab
+sudo apt-get install -y poppler-utils    # Debian/Ubuntu
+python3 ChanceryCourtCollector.py        # or ObituaryPropertyCollector.py / DelinquentTaxCollector.py
+python3 tools/csv_to_pdf.py <result.csv> out.pdf "Title"
 ```
+
+Secrets (Telegram + GitHub tokens) live in GitHub Actions secrets and on the Worker —
+never in this repo.
