@@ -29,27 +29,32 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install dependencies (poppler for PDFs + requests)
+      - name: Install dependencies (poppler for PDFs + requests + reportlab)
         run: |
           sudo apt-get update
           sudo apt-get install -y poppler-utils
-          pip install requests
+          pip install requests reportlab
 
       - name: Run the collector
         run: python ChanceryCourtCollector.py
 
-      - name: Save the result as a downloadable file
+      - name: Make a neat PDF
+        run: python tools/csv_to_pdf.py ChanceryCourt_Names.csv ChanceryCourt_Names.pdf "Chancery Court — Case Names"
+
+      - name: Save the results as downloadable files
         uses: actions/upload-artifact@v4
         with:
           name: chancery-court-names
-          path: ChanceryCourt_Names.csv
+          path: |
+            ChanceryCourt_Names.pdf
+            ChanceryCourt_Names.csv
 
-      - name: Send the results to Telegram
+      - name: Send the results to Telegram (PDF + CSV)
         env:
           BOT_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           CHAT_ID: ${{ github.event.inputs.chat_id }}            # set = on-demand tap; blank = weekly -> all subscribers
           DEFAULT_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          FILE: ChanceryCourt_Names.csv
+          FILE: ChanceryCourt_Names.pdf,ChanceryCourt_Names.csv
         run: |
           COUNT=$(($(wc -l < ChanceryCourt_Names.csv) - 1))
           CAPTION="📋 Chancery Court leads — $(date -u +%Y-%m-%d) — ${COUNT} names" \

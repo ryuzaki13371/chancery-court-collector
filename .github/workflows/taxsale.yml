@@ -31,29 +31,34 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install dependencies (poppler for the PDF + requests)
+      - name: Install dependencies (poppler for the PDF + requests + reportlab)
         run: |
           sudo apt-get update
           sudo apt-get install -y poppler-utils
-          pip install requests
+          pip install requests reportlab
 
       - name: Run the collector
         env:
           MAX_ROWS: ${{ github.event.inputs.max_rows }}
         run: python DelinquentTaxCollector.py
 
-      - name: Save the result as a downloadable file
+      - name: Make a neat PDF
+        run: python tools/csv_to_pdf.py DelinquentTaxSale_Owners.csv DelinquentTaxSale_Owners.pdf "Delinquent Tax Sale + Owners"
+
+      - name: Save the results as downloadable files
         uses: actions/upload-artifact@v4
         with:
           name: delinquent-tax-sale-owners
-          path: DelinquentTaxSale_Owners.csv
+          path: |
+            DelinquentTaxSale_Owners.pdf
+            DelinquentTaxSale_Owners.csv
 
-      - name: Send the results to Telegram
+      - name: Send the results to Telegram (PDF + CSV)
         env:
           BOT_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           CHAT_ID: ${{ github.event.inputs.chat_id }}
           DEFAULT_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          FILE: DelinquentTaxSale_Owners.csv
+          FILE: DelinquentTaxSale_Owners.pdf,DelinquentTaxSale_Owners.csv
         run: |
           COUNT=$(($(wc -l < DelinquentTaxSale_Owners.csv) - 1))
           CAPTION="💰 Delinquent tax sale + owners — $(date -u +%Y-%m-%d) — ${COUNT} properties" \

@@ -137,7 +137,7 @@ def extract_hidden(page):
     return fields
 
 
-def lookup_owner(session, address):
+def lookup_owner(session, address, parcel):
     getr = _req(session, "GET", TRUSTEE_URL)
     if not getr:
         return "", "site error (get)"
@@ -148,10 +148,21 @@ def lookup_owner(session, address):
                  headers={"Referer": TRUSTEE_URL, "Origin": "https://tpti.hamiltontn.gov"})
     if not postr:
         return "", "site error (post)"
-    return parse_owner(postr.text, address)
+    return parse_owner(postr.text, address, parcel)
 
 
-def parse_owner(page, address):
+def _norm(s):
+    return re.sub(r"[^A-Z0-9]", "", s.upper())
+
+
+def _owner_after(text, want):
+    m = re.search(r"\b" + re.escape(want) + r"\b", text)
+    if not m:
+        return ""
+    return re.sub(r"\s{2,}", " ", text[m.end():]).strip(" .-|")[:60]
+
+
+def parse_owner(page, address, parcel=""):
     idx = page.find("ctl00_MainContent_dgrResults")
     if idx < 0:
         return "", "no match"
@@ -159,26 +170,31 @@ def parse_owner(page, address):
     cut = grid.find("Send any suggestions")          # drop the page footer
     if cut > 0:
         grid = grid[:cut]
-    chunks = grid.split("Trustee_PropertyInfo.aspx?pmuid=")[1:]   # one per result
+    rows = re.split(r'<tr class="DG[A-Za-z]*Item"', grid)[1:]   # one element per result row
     want = re.sub(r"\s+", " ", address).upper().strip()
-    owners = []
-    for ch in chunks:
-        text = re.sub(r"\s+", " ", decode(re.sub(r"<[^>]+>", " ", ch))).strip().upper()
-        pos = text.find(want)
-        if pos < 0:
-            continue
-        owner = text[pos + len(want):].strip(" .-")
-        owner = re.sub(r"\s{2,}", " ", owner).strip()
-        if owner:
-            owners.append(owner)
-    if not owners:
-        n = len(chunks)
-        return "", (f"no exact match ({n} results)" if n else "no match")
-    uniq = []
-    for o in owners:
-        if o not in uniq:
-            uniq.append(o)
-    return " | ".join(uniq), ("owner found" if len(uniq) == 1 else f"multiple ({len(uniq)})")
+    target_parcel = _norm(parcel) if parcel else ""
+
+    texts = []
+    for part in rows:
+        t = re.sub(r"\s+", " ", decode(re.sub(r"<[^>]+>", " ", part))).strip().upper()
+        texts.append(re.sub(r"<[^>]*$", "", t).strip())
+
+    # Best: the row whose PARCEL matches the delinquent list (pins the exact unit).
+    if target_parcel:
+        for t in texts:
+            if target_parcel in _norm(t):
+                owner = _owner_after(t, want) or _owner_after(t, "")  # after address, else whole tail
+                if owner:
+                    return owner, "owner found"
+
+    # Fall back to exact-address match.
+    matches = [_owner_after(t, want) for t in texts if re.search(r"\b" + re.escape(want) + r"\b", t)]
+    matches = [o for o in matches if o]
+    if len(matches) == 1:
+        return matches[0], "owner found"
+    if len(matches) > 1:
+        return "", f"complex/multiple ({len(matches)} at this address) - parcel not matched"
+    return "", (f"no exact match ({len(rows)} results)" if rows else "no match")
 
 
 # ----------------------------------------------------------------------------
@@ -199,7 +215,7 @@ def main():
     out = []
     for r in rows:
         if r["has_number"]:
-            owner, status = lookup_owner(session, r["address"])
+            owner, status = lookup_owner(session, r["address"], r["parcel"])
             time.sleep(THROTTLE)
         else:
             owner, status = "", "land (no street #) - not searched"

@@ -29,23 +29,28 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: pip install requests
+        run: pip install requests reportlab
 
       - name: Run the collector
         run: python ObituaryPropertyCollector.py
 
-      - name: Save the result as a downloadable file
+      - name: Make a neat PDF
+        run: python tools/csv_to_pdf.py Obituary_Addresses.csv Obituary_Addresses.pdf "Obituaries → Property Addresses"
+
+      - name: Save the results as downloadable files
         uses: actions/upload-artifact@v4
         with:
           name: obituary-addresses
-          path: Obituary_Addresses.csv
+          path: |
+            Obituary_Addresses.pdf
+            Obituary_Addresses.csv
 
-      - name: Send the results to Telegram
+      - name: Send the results to Telegram (PDF + CSV)
         env:
           BOT_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           CHAT_ID: ${{ github.event.inputs.chat_id }}            # set = on-demand tap; blank = weekly -> all subscribers
           DEFAULT_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          FILE: Obituary_Addresses.csv
+          FILE: Obituary_Addresses.pdf,Obituary_Addresses.csv
         run: |
           COUNT=$(($(wc -l < Obituary_Addresses.csv) - 1))
           CAPTION="🏠 Obituary → address leads — $(date -u +%Y-%m-%d) — ${COUNT} names" \

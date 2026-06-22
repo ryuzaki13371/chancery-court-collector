@@ -8,18 +8,18 @@ Recipients:
   - If subscribers.txt is empty/missing, fall back to DEFAULT_CHAT_ID (if set).
 
 Env:
-  BOT_TOKEN        Telegram bot token            (required)
-  FILE             path to the file to send      (required)
-  CAPTION          caption text                  (optional)
-  CHAT_ID          single recipient              (optional; on-demand runs)
-  DEFAULT_CHAT_ID  fallback recipient            (optional)
+  BOT_TOKEN        Telegram bot token                       (required)
+  FILE             file(s) to send, comma-separated         (required)
+  CAPTION          caption text (shown on the first file)   (optional)
+  CHAT_ID          single recipient                         (optional; on-demand runs)
+  DEFAULT_CHAT_ID  fallback recipient                       (optional)
 """
 import os
 import sys
 import requests
 
 TOKEN = os.environ["BOT_TOKEN"]
-FILE = os.environ["FILE"]
+FILES = [p.strip() for p in os.environ["FILE"].split(",") if p.strip()]
 CAPTION = os.environ.get("CAPTION", "")
 API = f"https://api.telegram.org/bot{TOKEN}/sendDocument"
 
@@ -45,14 +45,20 @@ def main():
         return
     sent, failed = 0, 0
     for chat in targets:
-        with open(FILE, "rb") as fh:
-            r = requests.post(API, data={"chat_id": chat, "caption": CAPTION},
-                              files={"document": fh}, timeout=60)
-        if r.ok and r.json().get("ok"):
-            sent += 1
-        else:
-            failed += 1
-            print(f"  failed for {chat}: {r.status_code} {r.text[:120]}")
+        ok_all = True
+        for i, path in enumerate(FILES):
+            if not os.path.exists(path):
+                continue
+            data = {"chat_id": chat}
+            if i == 0 and CAPTION:
+                data["caption"] = CAPTION          # caption on the first (the PDF)
+            with open(path, "rb") as fh:
+                r = requests.post(API, data=data, files={"document": fh}, timeout=60)
+            if not (r.ok and r.json().get("ok")):
+                ok_all = False
+                print(f"  failed for {chat} ({path}): {r.status_code} {r.text[:120]}")
+        sent += ok_all
+        failed += (not ok_all)
     print(f"Delivered to {sent} chat(s); {failed} failed.")
 
 
