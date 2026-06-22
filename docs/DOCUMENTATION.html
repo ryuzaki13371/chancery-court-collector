@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lead Collector — Complete Documentation</title>
+<style>
+  :root{
+    --navy:#1f4e79;--navy2:#2e6da4;--ink:#1f2733;--muted:#5b6675;
+    --line:#d9e2ec;--stripe:#f3f7fc;--ok:#1a7f4b;--warn:#b26a00;--code:#0b3d63;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+    color:var(--ink);margin:0;line-height:1.55;font-size:13.5px}
+  .wrap{max-width:900px;margin:0 auto;padding:0 40px}
+
+  /* cover */
+  .cover{height:100vh;min-height:780px;background:linear-gradient(150deg,#173a5c,#2e6da4);
+    color:#fff;display:flex;flex-direction:column;justify-content:center;padding:0 60px;
+    page-break-after:always}
+  .cover .eyebrow{letter-spacing:3px;text-transform:uppercase;font-size:13px;opacity:.85}
+  .cover h1{font-size:46px;margin:14px 0 6px;line-height:1.1}
+  .cover h2{font-size:20px;font-weight:400;opacity:.92;margin:0;border:none;color:#fff}
+  .cover .by{margin-top:40px;font-size:14px;line-height:1.9;opacity:.9}
+  .cover .chips{margin-top:26px}
+  .cover .chip{display:inline-block;border:1px solid rgba(255,255,255,.4);border-radius:20px;
+    padding:4px 14px;margin:4px 6px 4px 0;font-size:12.5px}
+
+  h2{color:var(--navy);font-size:22px;margin:32px 0 12px;padding-bottom:7px;
+    border-bottom:2px solid var(--navy);page-break-after:avoid}
+  h3{font-size:16px;margin:20px 0 6px;color:var(--navy2);page-break-after:avoid}
+  h4{font-size:14px;margin:14px 0 4px;color:var(--ink)}
+  p{margin:8px 0}
+  ul,ol{margin:8px 0 8px 2px;padding-left:24px}
+  li{margin:5px 0}
+  code{background:#eef2f7;border:1px solid var(--line);border-radius:4px;padding:1px 5px;
+    font-family:SFMono-Regular,Consolas,monospace;font-size:12px;color:var(--code)}
+  table{border-collapse:collapse;width:100%;margin:12px 0;font-size:12.5px}
+  th,td{border:1px solid var(--line);padding:7px 9px;text-align:left;vertical-align:top}
+  th{background:var(--navy);color:#fff;font-weight:600}
+  tbody tr:nth-child(even){background:var(--stripe)}
+  .flow{background:#0f2438;color:#d6e4f0;border-radius:10px;padding:18px 20px;
+    font-family:SFMono-Regular,Consolas,monospace;font-size:12px;white-space:pre;
+    overflow-x:auto;line-height:1.5;margin:14px 0}
+  .note{border-left:4px solid var(--navy2);background:#f6f9fd;padding:10px 14px;
+    border-radius:0 8px 8px 0;margin:12px 0}
+  .note.warn{border-left-color:var(--warn);background:#fdf7ec}
+  .note.ok{border-left-color:var(--ok);background:#eef8f1}
+  .pill{display:inline-block;border-radius:20px;padding:1px 9px;font-size:11px;font-weight:600}
+  .pill.ok{background:#e3f5ea;color:var(--ok)} .pill.warn{background:#fcf0db;color:var(--warn)}
+  .toc{columns:2;column-gap:40px;margin:10px 0}
+  .toc a{color:var(--ink);text-decoration:none;display:block;padding:3px 0;
+    border-bottom:1px dotted var(--line);font-size:13px}
+  .toc a b{color:var(--navy);display:inline-block;width:26px}
+  .sec{page-break-before:always}
+  pre.cmd{background:#0f2438;color:#d6e4f0;border-radius:8px;padding:12px 14px;
+    font-family:SFMono-Regular,Consolas,monospace;font-size:11.5px;white-space:pre-wrap;
+    line-height:1.5;margin:10px 0}
+  .kbd{background:#fff;border:1px solid #aaa;border-bottom-width:2px;border-radius:4px;
+    padding:0 6px;font-size:12px;font-family:monospace}
+  footer{margin:30px 40px;padding-top:12px;border-top:2px solid var(--line);
+    color:var(--muted);font-size:11.5px}
+  @media print{ a{color:var(--ink);text-decoration:none} .flow,table,.note,pre.cmd{page-break-inside:avoid} }
+</style>
+</head>
+<body>
+
+<!-- ============ COVER ============ -->
+<section class="cover">
+  <div class="eyebrow">Project Documentation</div>
+  <h1>Lead&nbsp;Collector</h1>
+  <h2>Automated public-records lead collection &amp; delivery — Hamilton County, TN</h2>
+  <div class="chips">
+    <span class="chip">3 automations</span>
+    <span class="chip">Google Sheet + Telegram</span>
+    <span class="chip">Weekly &amp; on-demand</span>
+    <span class="chip">$0 / month</span>
+    <span class="chip">No server</span>
+  </div>
+  <div class="by">
+    <b>Prepared by:</b> M. Rizki Kurniawan<br>
+    <b>Client:</b> Steven R.<br>
+    <b>Version:</b> 1.0 &nbsp;·&nbsp; June 2026
+  </div>
+</section>
+
+<div class="wrap">
+
+<!-- ============ TOC ============ -->
+<h2 id="toc">Table of Contents <span style="font-weight:400;font-size:14px;color:var(--muted)">— Daftar Isi</span></h2>
+<div class="toc">
+  <a href="#s1"><b>1</b> Introduction &amp; Background</a>
+  <a href="#s2"><b>2</b> The Client’s Request</a>
+  <a href="#s3"><b>3</b> System Architecture</a>
+  <a href="#s4"><b>4</b> The Three Automations</a>
+  <a href="#s4a">&nbsp;&nbsp;&nbsp;4.1 Obituaries → Addresses</a>
+  <a href="#s4b">&nbsp;&nbsp;&nbsp;4.2 Court Docket Names</a>
+  <a href="#s4c">&nbsp;&nbsp;&nbsp;4.3 Tax Sale → Owners</a>
+  <a href="#s5"><b>5</b> Delivery Channels</a>
+  <a href="#s6"><b>6</b> Tutorial A — For the Client</a>
+  <a href="#s7"><b>7</b> Tutorial B — For the Operator</a>
+  <a href="#s8"><b>8</b> Tutorial C — Setup &amp; Deployment</a>
+  <a href="#s9"><b>9</b> Technology Stack</a>
+  <a href="#s10"><b>10</b> Cost Breakdown</a>
+  <a href="#s11"><b>11</b> Data Quality &amp; Honest Notes</a>
+  <a href="#s12"><b>12</b> Security &amp; Credentials</a>
+  <a href="#s13"><b>13</b> Maintenance &amp; New Sources</a>
+  <a href="#s14"><b>14</b> Project Status</a>
+  <a href="#s15"><b>15</b> File &amp; Repository Reference</a>
+  <a href="#s16"><b>16</b> Command Reference</a>
+  <a href="#s17"><b>17</b> Glossary</a>
+</div>
+
+<!-- ============ 1 ============ -->
+<section class="sec" id="s1">
+<h2>1 · Introduction &amp; Background</h2>
+<p><b>Lead Collector</b> is a set of three automations that gather sales-lead information from
+public Hamilton County, Tennessee government records, clean and organize it, and deliver it
+automatically to a Google Sheet and a Telegram bot.</p>
+<p>The client, Steven R., works with government-records data and needed a simple, low-cost,
+repeatable way to collect it — originally framed around the no-code tool <b>Browse AI</b>, but
+with the explicit allowance to use custom code where it is “the best option.” In practice, the
+government sources involved (an ASP.NET search form and several PDFs) are beyond what a no-code
+scraper handles reliably, so the project was built as small, dependable scripts that run free in
+the cloud — meeting the client’s true priorities: <b>reliable, lowest-cost, reusable.</b></p>
+<div class="note"><b>All data sources are public government records.</b> The automations read
+publicly available pages and documents — obituary listings, the County Trustee property search,
+Chancery Court dockets, and the Delinquent Tax Sale list.</div>
+</section>
+
+<!-- ============ 2 ============ -->
+<section class="sec" id="s2">
+<h2>2 · The Client’s Request</h2>
+<p>Three separate jobs were requested.</p>
+
+<h3>Task A — Obituaries → Property Addresses</h3>
+<ul>
+  <li>Collect obituary names from <code>chattanoogan.com/obituaries</code></li>
+  <li>Enter each name in <b>“Last Name First Name”</b> format (e.g. <i>Robert Jones → Jones Robert</i>; shortened forms like <i>Jones Rob / Jones R.</i> acceptable)</li>
+  <li>Search each name on the <b>HC Trustee Property Tax</b> site; if a result is found, collect the <b>property address</b> (e.g. <code>508 N HAVEN LN</code>)</li>
+  <li>Add everything to a <b>Google Sheet</b>; run <b>once per week</b></li>
+</ul>
+
+<h3>Task B — Chancery Court Docket Names</h3>
+<ul>
+  <li>From <code>hamiltontn.gov/ChanceryCourt_Dockets.aspx</code>, open <b>“Current Motion Call Docket Part 1”</b> and <b>“Part 2”</b> PDFs</li>
+  <li>Extract the individual case-party names</li>
+  <li><b>Do not</b> use the “Procedural Steps List” or “Motion Call Schedule” links — only the current motion call dockets contain case names</li>
+</ul>
+
+<h3>Task C — Delinquent Tax Sale → Owners</h3>
+<ul>
+  <li>From the <b>Delinquent Tax Sale List</b> PDF, scrape the property addresses</li>
+  <li>Search each address on the <b>Trustee Property Search</b> site to identify the current owner</li>
+</ul>
+</section>
+
+<!-- ============ 3 ============ -->
+<section class="sec" id="s3">
+<h2>3 · System Architecture</h2>
+<p>Every task follows the same pipeline. Only the “reader” at the top differs per source.</p>
+<div class="flow">┌──────────────────────────────────────────────────────────────┐
+│  SOURCE        obituary page · court PDFs · tax-sale PDF       │
+└───────────────┬──────────────────────────────────────────────┘
+                │
+                ▼
+┌──────────────────────────────────────────────────────────────┐
+│  COLLECTOR (Python)                                            │
+│   • downloads / scrapes the source                            │
+│   • cleans &amp; reformats (names, addresses, parcels)            │
+│   • enriches via the Trustee site (owner / address)           │
+│   • writes a clean CSV                                         │
+└───────────────┬──────────────────────────────────────────────┘
+                │
+                ▼
+┌──────────────────────────────────────────────────────────────┐
+│  GITHUB ACTIONS  (free cloud runner)                          │
+│   • schedule: every Monday 11:00 UTC                          │
+│   • on demand: triggered by the Telegram bot                  │
+└───────┬───────────────────┬───────────────────┬──────────────┘
+        │                   │                   │
+        ▼                   ▼                   ▼
+ ┌─────────────┐   ┌──────────────────┐   ┌──────────────┐
+ │ GOOGLE SHEET│   │  TELEGRAM BOT     │   │ RUN ARTIFACT │
+ │ auto-append │   │  PDF + CSV files  │   │ (backup copy)│
+ │ deduped     │   │  to subscribers   │   │ on run page  │
+ └─────────────┘   └──────────────────┘   └──────────────┘
+                          ▲
+                          │ button taps / commands
+                ┌─────────┴──────────┐
+                │ CLOUDFLARE WORKER  │  ← the bot’s “brain” (always-on, free)
+                └────────────────────┘</div>
+
+<h3>Components</h3>
+<table>
+  <thead><tr><th>Component</th><th>Technology</th><th>Job</th></tr></thead>
+  <tbody>
+    <tr><td>Collectors</td><td>Python 3 + <code>requests</code></td><td>Scrape, clean, enrich, output CSV</td></tr>
+    <tr><td>PDF text</td><td><code>pdftotext</code> (poppler)</td><td>Read the court &amp; tax-sale PDFs</td></tr>
+    <tr><td>Scheduler / runner</td><td>GitHub Actions</td><td>Run weekly + on demand, free</td></tr>
+    <tr><td>Bot brain</td><td>Cloudflare Worker (JS)</td><td>Catch taps → trigger the right run</td></tr>
+    <tr><td>Delivery</td><td>Telegram Bot API</td><td>Send PDF + CSV to subscribers</td></tr>
+    <tr><td>Storage</td><td>Google Sheets API</td><td>Auto-fill, deduplicated, per-task tabs</td></tr>
+    <tr><td>Report formatting</td><td><code>reportlab</code></td><td>Turn any CSV into a neat PDF</td></tr>
+  </tbody>
+</table>
+</section>
+
+<!-- ============ 4 ============ -->
+<section class="sec" id="s4">
+<h2>4 · The Three Automations</h2>
+
+<h3 id="s4a">4.1 · Obituaries → Property Addresses <span class="pill ok">Task A</span></h3>
+<p><b>Script:</b> <code>ObituaryPropertyCollector.py</code> &nbsp;·&nbsp; <b>Sheet tab:</b> Obituaries</p>
+<ol>
+  <li>Reads the obituary list from <code>chattanoogan.com/obituaries</code> (≈20 most recent).</li>
+  <li>Reformats each name to “Last First”: strips nicknames (“Don”), parentheticals, suffixes
+      (Jr./Sr./III), and middle initials; flags nicknames &amp; compound names for review.</li>
+  <li>Searches the Trustee site by <b>last name</b>, then matches the right person by first name:
+      <b>full first name = “Matched”</b>; surname + first initial only = <b>“Possible — verify”</b>;
+      a very common surname+initial is skipped to avoid noise.</li>
+  <li>Captures the property address (e.g. <code>302 BRADY POINT RD</code>).</li>
+</ol>
+<p><b>Columns:</b> Collected On · Obit Date · Obituary Name · Search Name (Last First) ·
+Property Address · Other Possible Addresses · Match · Notes · Source Link.</p>
+<div class="note warn"><b>Expect blanks.</b> The Trustee site lists only <i>current</i> owners; a
+deceased person often is no longer the owner of record (spouse / trust / sold / rented). Blank
+rows are the data reality, not a malfunction — this is exactly why the request said
+“<i>IF</i> the search returns a result.”</div>
+
+<h3 id="s4b">4.2 · Chancery Court Docket Names <span class="pill ok">Task B</span></h3>
+<p><b>Script:</b> <code>ChanceryCourtCollector.py</code> &nbsp;·&nbsp; <b>Sheet tab:</b> Chancery Court</p>
+<ol>
+  <li>Opens the Chancery Court Dockets page and finds the links <b>by their label</b> —
+      “Current Motion Call Docket Part 1” &amp; “Part 2” — so it always grabs the current week
+      (no hard-coded, expiring links).</li>
+  <li>Deliberately <b>skips</b> the “Procedural Steps List” and “Motion Call Schedule” links.</li>
+  <li>Downloads both PDFs, reads them with <code>pdftotext -layout</code>, and extracts party
+      names from the left (party) column, filtering out attorneys, firms, agencies, and
+      boilerplate legal phrases.</li>
+</ol>
+<p><b>Columns:</b> Docket · Docket Date · Name.</p>
+
+<h3 id="s4c">4.3 · Delinquent Tax Sale → Owners <span class="pill ok">Task C</span></h3>
+<p><b>Script:</b> <code>DelinquentTaxCollector.py</code> &nbsp;·&nbsp; <b>Sheet tab:</b> Tax Sale</p>
+<ol>
+  <li>Downloads the current <b>Delinquent Tax Sale List</b> PDF (auto-detects the year).</li>
+  <li>Parses each property: address, parcel, minimum bid, and whether it is already <b>PAID</b>
+      (redeemed). Handles both city and rural parcel formats.</li>
+  <li>Searches each address on the Trustee site and, using the exact <b>parcel</b> from the list,
+      pins the correct owner — even on multi-unit addresses (e.g. a 508-unit condo).</li>
+  <li>Sorts <b>active leads first</b> (still going to sale), redeemed below.</li>
+</ol>
+<p><b>Columns:</b> Sale Status · Property Address · Minimum Bid · Owner (from Trustee) ·
+Lookup · Parcel · Docket · Item # · Collected On.</p>
+</section>
+
+<!-- ============ 5 ============ -->
+<section class="sec" id="s5">
+<h2>5 · Delivery Channels</h2>
+<table>
+  <thead><tr><th>Channel</th><th>Contents</th><th>Trigger</th></tr></thead>
+  <tbody>
+    <tr><td><b>Google Sheet</b></td><td>One tab per task; auto-appended &amp; de-duplicated;
+      bold frozen headers, striped rows, filters</td><td>Every run</td></tr>
+    <tr><td><b>Telegram bot</b></td><td>A formatted <b>PDF</b> (read/print) and a <b>CSV</b>
+      (sort/filter)</td><td>Weekly + on demand</td></tr>
+    <tr><td><b>GitHub artifact</b></td><td>Downloadable file copy</td><td>Every run</td></tr>
+  </tbody>
+</table>
+<p><b>De-duplication keys:</b> Obituaries = Source Link · Chancery = Name · Tax Sale = Parcel.
+Weekly runs therefore <i>grow</i> each tab instead of duplicating earlier leads.</p>
+
+<h3>The Telegram bot</h3>
+<p><b>@LeadCollectorHQ_bot</b> — link: <code>t.me/LeadCollectorHQ_bot</code>. Commands:</p>
+<table>
+  <thead><tr><th>Command / button</th><th>Action</th></tr></thead>
+  <tbody>
+    <tr><td><code>/start</code></td><td>Show the menu + subscribe to weekly delivery</td></tr>
+    <tr><td>📋 Court Dockets / <code>/dockets</code></td><td>Pull the latest docket names now</td></tr>
+    <tr><td>🏠 Obituary → Addresses / <code>/obituaries</code></td><td>Pull obituary addresses now</td></tr>
+    <tr><td>💰 Tax Sale → Owners / <code>/taxsale</code></td><td>Pull the tax-sale + owners now (~5 min)</td></tr>
+    <tr><td><code>/stop</code></td><td>Unsubscribe from weekly delivery</td></tr>
+  </tbody>
+</table>
+</section>
+
+<!-- ============ 6 ============ -->
+<section class="sec" id="s6">
+<h2>6 · Tutorial A — For the Client (Steven)</h2>
+<h3>Getting your leads</h3>
+<ol>
+  <li><b>The Google Sheet</b> fills itself — just open it. Three tabs: Chancery Court, Obituaries, Tax Sale.</li>
+  <li><b>From your phone, any time:</b> open <code>t.me/LeadCollectorHQ_bot</code> → press
+      <span class="kbd">Start</span> → tap a button. The file (PDF + spreadsheet) arrives in the chat in 1–2 minutes.</li>
+  <li><b>Weekly:</b> once you’ve pressed Start, a fresh copy is sent to you automatically every
+      Monday. Send <code>/stop</code> to pause, <code>/start</code> to resume.</li>
+</ol>
+<h3>Reading the results</h3>
+<ul>
+  <li><b>Match = Matched</b> → one confident address. <b>Possible — verify</b> → likely, check it.
+      <b>No match / Common name — skipped</b> → no reliable address (see §11).</li>
+  <li><b>Tax Sale → Sale Status:</b> “Active — going to sale” are the live leads (sorted to the
+      top); “Redeemed (paid)” have been settled.</li>
+</ul>
+<div class="note ok"><b>Nothing to install, no password to manage, no cost to you.</b> Open the
+sheet, or tap the bot. That’s it.</div>
+</section>
+
+<!-- ============ 7 ============ -->
+<section class="sec" id="s7">
+<h2>7 · Tutorial B — For the Operator</h2>
+
+<h3>Run a collector manually (cloud)</h3>
+<p>GitHub → repo → <b>Actions</b> tab → pick a workflow → <b>Run workflow</b>. Or via CLI:</p>
+<pre class="cmd">gh workflow run weekly.yml      --repo ryuzaki13371/chancery-court-collector   # dockets
+gh workflow run obituaries.yml  --repo ryuzaki13371/chancery-court-collector
+gh workflow run taxsale.yml     --repo ryuzaki13371/chancery-court-collector</pre>
+
+<h3>Run a collector locally</h3>
+<pre class="cmd">pip install requests reportlab google-auth
+sudo apt-get install -y poppler-utils
+python3 ChanceryCourtCollector.py        # or ObituaryPropertyCollector.py / DelinquentTaxCollector.py
+python3 tools/csv_to_pdf.py result.csv out.pdf "Title"</pre>
+
+<h3>Point it at a different Google Sheet (e.g. the client’s own)</h3>
+<ol>
+  <li>Client creates a Google Sheet, clicks <b>Share</b>, adds the service-account email as
+      <b>Editor</b>: <code>lead-collector@lead-collector-500213.iam.gserviceaccount.com</code></li>
+  <li>Client sends the sheet link.</li>
+  <li>Update the GitHub secret: <code>gh secret set SHEET_ID --repo …</code> (paste the new id).</li>
+</ol>
+
+<h3>Add another client / recipient</h3>
+<p>They open <code>t.me/LeadCollectorHQ_bot</code> and press <b>Start</b> — that auto-subscribes
+their chat (recorded in <code>subscribers.txt</code>). Weekly runs then deliver to them too.</p>
+</section>
+
+<!-- ============ 8 ============ -->
+<section class="sec" id="s8">
+<h2>8 · Tutorial C — Setup &amp; Deployment (from scratch)</h2>
+<p>For rebuilding the system in a fresh environment. Four parts.</p>
+
+<h3>8.1 · GitHub repository &amp; Actions</h3>
+<ol>
+  <li>Create a repo and push the project files.</li>
+  <li>Add repository <b>Secrets</b> (Settings → Secrets and variables → Actions): <code>TELEGRAM_TOKEN</code>,
+      <code>TELEGRAM_CHAT_ID</code>, <code>GCP_SA_KEY</code>, <code>SHEET_ID</code>.</li>
+  <li>The workflows in <code>.github/workflows/</code> run automatically; public repos get
+      unlimited free Actions minutes.</li>
+</ol>
+
+<h3>8.2 · Telegram bot (BotFather)</h3>
+<ol>
+  <li>In Telegram, message <b>@BotFather</b> → <code>/newbot</code> → name it → get the <b>bot token</b>.</li>
+  <li>Set the command menu with <code>setMyCommands</code>; set the description with <code>setMyDescription</code>.</li>
+</ol>
+
+<h3>8.3 · Cloudflare Worker (bot brain)</h3>
+<ol>
+  <li>Create a free Cloudflare account.</li>
+  <li>From <code>telegram-bot/</code>: <code>npx wrangler deploy</code>.</li>
+  <li>Set Worker secrets: <code>BOT_TOKEN</code>, <code>GH_TOKEN</code> (fine-grained, Actions:read&amp;write),
+      <code>WEBHOOK_SECRET</code>; the <code>GH_REPO</code> var lives in <code>wrangler.toml</code>.</li>
+  <li>Point Telegram at the Worker:
+      <code>setWebhook?url=&lt;worker-url&gt;&amp;secret_token=&lt;WEBHOOK_SECRET&gt;</code>.</li>
+</ol>
+
+<h3>8.4 · Google service account &amp; Sheet</h3>
+<ol>
+  <li>Google Cloud Console → new project → enable the <b>Google Sheets API</b>.</li>
+  <li>Create a <b>service account</b>, download its JSON key → store as the <code>GCP_SA_KEY</code> secret.</li>
+  <li>Create a Google Sheet, <b>Share</b> it (Editor) with the service-account email, put its id in <code>SHEET_ID</code>.</li>
+</ol>
+<div class="note">Full bot deploy steps are also in <code>telegram-bot/DEPLOY.md</code> in the repo.</div>
+</section>
+
+<!-- ============ 9 ============ -->
+<section class="sec" id="s9">
+<h2>9 · Technology Stack</h2>
+<table>
+  <thead><tr><th>Layer</th><th>Tool</th><th>Why</th></tr></thead>
+  <tbody>
+    <tr><td>Language</td><td>Python 3</td><td>Scraping, parsing, enrichment</td></tr>
+    <tr><td>HTTP</td><td>requests</td><td>Talk to the gov sites &amp; APIs</td></tr>
+    <tr><td>PDF reading</td><td>poppler / pdftotext</td><td>Court &amp; tax-sale PDFs</td></tr>
+    <tr><td>PDF output</td><td>reportlab</td><td>Neat report PDFs</td></tr>
+    <tr><td>Scheduler</td><td>GitHub Actions</td><td>Free cloud cron + on-demand</td></tr>
+    <tr><td>Bot runtime</td><td>Cloudflare Workers</td><td>Always-on, serverless, free</td></tr>
+    <tr><td>Delivery</td><td>Telegram Bot API</td><td>Files to phone, on demand</td></tr>
+    <tr><td>Storage</td><td>Google Sheets API</td><td>Client-friendly, shareable</td></tr>
+    <tr><td>Auth</td><td>Google service account</td><td>Server-to-sheet writing</td></tr>
+  </tbody>
+</table>
+</section>
+
+<!-- ============ 10 ============ -->
+<section class="sec" id="s10">
+<h2>10 · Cost Breakdown</h2>
+<table>
+  <thead><tr><th>Service</th><th>Tier used</th><th>Cost</th></tr></thead>
+  <tbody>
+    <tr><td>GitHub Actions</td><td>Public-repo (unlimited minutes)</td><td><span class="pill ok">$0</span></td></tr>
+    <tr><td>Cloudflare Workers</td><td>Free (100k req/day)</td><td><span class="pill ok">$0</span></td></tr>
+    <tr><td>Google Sheets API</td><td>Free quota</td><td><span class="pill ok">$0</span></td></tr>
+    <tr><td>Telegram Bot API</td><td>Free</td><td><span class="pill ok">$0</span></td></tr>
+    <tr><td><b>Total</b></td><td></td><td><b><span class="pill ok">$0 / month</span></b></td></tr>
+  </tbody>
+</table>
+<p>No VPS or server is required. This directly meets the client’s “lowest-cost reliable setup” priority.</p>
+</section>
+
+<!-- ============ 11 ============ -->
+<section class="sec" id="s11">
+<h2>11 · Data Quality &amp; Honest Notes</h2>
+<ul>
+  <li><b>Obituary blanks are normal.</b> Many deceased aren’t the current owner of record; those
+      rows are correctly blank and labelled. A typical week yields addresses for roughly half to
+      two-thirds of names.</li>
+  <li><b>“Possible — verify” means verify.</b> These matched on surname + first initial, so they
+      may be a same-initial different person. Real address, human check advised.</li>
+  <li><b>Tax-sale “Redeemed (paid)” rows</b> are already settled — the live opportunities are the
+      “Active — going to sale” rows, sorted to the top.</li>
+  <li><b>Court dockets:</b> the main party per case is captured reliably; an occasional extra
+      co-party crammed mid-line may be missed. A handful of edge names can need a quick glance.</li>
+  <li><b>Open question for the client:</b> for the tax-sale lookup we collect the <b>owner name</b>.
+      If the <b>mailing address</b> or <b>amount owed</b> is also wanted from the Trustee detail
+      page, that is a small addition.</li>
+</ul>
+</section>
+
+<!-- ============ 12 ============ -->
+<section class="sec" id="s12">
+<h2>12 · Security &amp; Credentials</h2>
+<ul>
+  <li><b>Secrets are never in the repo.</b> All tokens/keys live in encrypted GitHub Actions
+      secrets and Cloudflare Worker secrets. The repo is public but contains <b>code only</b> —
+      lead data goes to the Sheet/Telegram, never committed.</li>
+  <li><b>Least privilege.</b> The bot’s GitHub token is fine-grained (Actions on one repo only).
+      Data workflows run read-only.</li>
+  <li><b>Credentials in use:</b> Telegram bot token · GitHub fine-grained token · Google
+      service-account key · webhook secret.</li>
+</ul>
+<div class="note warn"><b>Housekeeping recommended.</b> Any credential that was shared during
+setup should be rotated once the system is stable, and temporary build tokens (used only to
+deploy) should be revoked. None of this affects the running system.</div>
+</section>
+
+<!-- ============ 13 ============ -->
+<section class="sec" id="s13">
+<h2>13 · Maintenance &amp; Adding New Sources</h2>
+<p>The engine — name/address formatting, owner matching, de-duplication, scheduling, and
+Sheet + Telegram + PDF delivery — is shared across all tasks. Adding a new source only requires a
+new “reader” for that page or PDF; everything downstream is reused.</p>
+<h4>To add a new source</h4>
+<ol>
+  <li>Write a small collector that outputs a clean CSV (model it on an existing one).</li>
+  <li>Add a workflow (copy an existing one; set the tab name + dedup key).</li>
+  <li>Add a button + command in <code>telegram-bot/worker.js</code> and redeploy the Worker.</li>
+</ol>
+<h4>Routine upkeep</h4>
+<ul>
+  <li>If a county page changes layout, the matching “reader” may need a small tweak.</li>
+  <li>If a run shows “Site error”, simply re-run — the Trustee site occasionally times out.</li>
+</ul>
+</section>
+
+<!-- ============ 14 ============ -->
+<section class="sec" id="s14">
+<h2>14 · Project Status</h2>
+<table>
+  <thead><tr><th>Item</th><th>Status</th></tr></thead>
+  <tbody>
+    <tr><td>Task A — Obituaries → addresses (Sheet, “Last First”, weekly)</td><td><span class="pill ok">Complete</span></td></tr>
+    <tr><td>Task B — Chancery docket names (correct PDFs, excluded links skipped)</td><td><span class="pill ok">Complete</span></td></tr>
+    <tr><td>Task C — Tax sale → addresses → Trustee owner lookup</td><td><span class="pill ok">Complete</span></td></tr>
+    <tr><td>Google Sheet auto-fill (all 3 tabs, formatted, deduped)</td><td><span class="pill ok">Complete</span></td></tr>
+    <tr><td>Telegram bot — weekly + on-demand, PDF + CSV</td><td><span class="pill ok">Complete</span></td></tr>
+    <tr><td>Hand the Sheet/bot link to Steven; confirm “done”</td><td><span class="pill warn">Pending — client handoff</span></td></tr>
+    <tr><td>Confirm tax-sale extra fields (mailing address / amount owed?)</td><td><span class="pill warn">Pending — client choice</span></td></tr>
+    <tr><td>Rotate setup credentials; revoke temporary build tokens</td><td><span class="pill warn">Pending — housekeeping</span></td></tr>
+  </tbody>
+</table>
+</section>
+
+<!-- ============ 15 ============ -->
+<section class="sec" id="s15">
+<h2>15 · File &amp; Repository Reference</h2>
+<p>Repo: <code>ryuzaki13371/chancery-court-collector</code> (public, code only)</p>
+<table>
+  <thead><tr><th>File</th><th>Purpose</th></tr></thead>
+  <tbody>
+    <tr><td><code>ObituaryPropertyCollector.py</code></td><td>Task A collector</td></tr>
+    <tr><td><code>ChanceryCourtCollector.py</code></td><td>Task B collector</td></tr>
+    <tr><td><code>DelinquentTaxCollector.py</code></td><td>Task C collector</td></tr>
+    <tr><td><code>tools/to_sheet.py</code></td><td>Append a CSV into a Google Sheet tab (deduped)</td></tr>
+    <tr><td><code>tools/csv_to_pdf.py</code></td><td>Render a CSV into a neat PDF</td></tr>
+    <tr><td><code>tools/notify.py</code></td><td>Send file(s) to Telegram recipients</td></tr>
+    <tr><td><code>tools/format_sheet.py</code></td><td>Apply formatting (headers, stripes, filters)</td></tr>
+    <tr><td><code>.github/workflows/weekly.yml</code></td><td>Task B run (weekly + on demand)</td></tr>
+    <tr><td><code>.github/workflows/obituaries.yml</code></td><td>Task A run (weekly + on demand)</td></tr>
+    <tr><td><code>.github/workflows/taxsale.yml</code></td><td>Task C run (on demand)</td></tr>
+    <tr><td><code>.github/workflows/subscribe.yml</code></td><td>Records bot subscribers</td></tr>
+    <tr><td><code>telegram-bot/worker.js</code></td><td>Cloudflare Worker — the bot logic</td></tr>
+    <tr><td><code>telegram-bot/wrangler.toml</code></td><td>Worker config</td></tr>
+    <tr><td><code>telegram-bot/DEPLOY.md</code></td><td>Bot deployment guide</td></tr>
+    <tr><td><code>docs/PROJECT-SUMMARY.html</code></td><td>One-page summary</td></tr>
+    <tr><td><code>README.md</code></td><td>Repo overview</td></tr>
+  </tbody>
+</table>
+</section>
+
+<!-- ============ 16 ============ -->
+<section class="sec" id="s16">
+<h2>16 · Command Reference</h2>
+<h4>Run / trigger</h4>
+<pre class="cmd"># run a workflow now (also what the bot does on a button tap)
+gh workflow run obituaries.yml --repo ryuzaki13371/chancery-court-collector
+gh workflow run weekly.yml     --repo ryuzaki13371/chancery-court-collector -f chat_id=&lt;telegram chat&gt;
+gh run watch &lt;run-id&gt; --repo ryuzaki13371/chancery-court-collector</pre>
+<h4>Update a secret</h4>
+<pre class="cmd">printf '&lt;value&gt;' | gh secret set SHEET_ID --repo ryuzaki13371/chancery-court-collector</pre>
+<h4>Deploy / update the bot</h4>
+<pre class="cmd">cd telegram-bot &amp;&amp; npx wrangler deploy
+echo '&lt;token&gt;' | npx wrangler secret put BOT_TOKEN</pre>
+<h4>Local data + PDF</h4>
+<pre class="cmd">python3 DelinquentTaxCollector.py
+python3 tools/csv_to_pdf.py DelinquentTaxSale_Owners.csv out.pdf "Delinquent Tax Sale + Owners"</pre>
+</section>
+
+<!-- ============ 17 ============ -->
+<section class="sec" id="s17">
+<h2>17 · Glossary</h2>
+<table>
+  <thead><tr><th>Term</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td>Trustee site</td><td>Hamilton County property-tax search (<code>tpti.hamiltontn.gov</code>) — maps a name/address to the current owner &amp; property.</td></tr>
+    <tr><td>Parcel</td><td>The county’s unique id for a piece of land (e.g. <code>117O-A-011 C158</code>) — used to pin the exact unit at a shared address.</td></tr>
+    <tr><td>Motion Call Docket</td><td>The Chancery Court list of cases being heard — the only docket files that contain party names.</td></tr>
+    <tr><td>Delinquent Tax Sale</td><td>Properties with unpaid taxes scheduled for auction; “Redeemed/PAID” means the owner settled and it’s off the sale.</td></tr>
+    <tr><td>Service account</td><td>A “robot” Google account the automation uses to write into a shared Sheet.</td></tr>
+    <tr><td>GitHub Actions</td><td>GitHub’s free cloud runner — executes the collectors on a schedule and on demand.</td></tr>
+    <tr><td>Cloudflare Worker</td><td>A tiny always-on cloud program that powers the bot’s buttons; free.</td></tr>
+    <tr><td>De-duplication</td><td>Skipping rows already present (by a key column) so weekly runs grow the list without repeats.</td></tr>
+  </tbody>
+</table>
+</section>
+
+</div>
+<footer>
+  Lead Collector — Complete Documentation · v1.0 · June 2026 · Prepared by M. Rizki Kurniawan for Steven R.<br>
+  All data sources are public Hamilton County, TN government records.
+</footer>
+</body>
+</html>
