@@ -18,6 +18,7 @@
 const WORKFLOWS = {
   dockets:    "weekly.yml",       // Task B: court docket names
   obituaries: "obituaries.yml",   // Task A: obituary -> property addresses
+  taxsale:    "taxsale.yml",      // Task C: delinquent tax sale -> owners
 };
 
 export default {
@@ -79,6 +80,8 @@ async function onMessage(msg, env) {
     await trigger(env, "dockets", chatId);
   } else if (cmd === "/obituaries") {
     await trigger(env, "obituaries", chatId);
+  } else if (cmd === "/taxsale") {
+    await trigger(env, "taxsale", chatId);
   } else if (cmd === "/stop") {
     await dispatch(env, "subscribe.yml", { chat_id: String(chatId), name: "", action: "remove" });
     await tg(env, "sendMessage", { chat_id: chatId, text: "🔕 You're unsubscribed from the weekly auto-send. Tap /start to rejoin." });
@@ -105,6 +108,9 @@ const WELCOME = [
   "🏠 <b>Obituary → Addresses</b>",
   "This week's obituary names from chattanoogan.com, each searched on the County Trustee property site to find a property address.",
   "",
+  "💰 <b>Tax Sale → Owners</b>",
+  "Every property on the County's Delinquent Tax Sale list — address, parcel, and minimum bid — with the current owner's name looked up from the Trustee site. (Takes a few minutes; it's ~140 lookups.)",
+  "",
   "<b>How to use it</b>",
   "Tap a button below 👇  Wait about 1–2 minutes. The file arrives right here in this chat.",
   "",
@@ -126,6 +132,7 @@ function sendMenu(env, chatId) {
       inline_keyboard: [
         [{ text: "📋 Court Dockets",        callback_data: "dockets" }],
         [{ text: "🏠 Obituary → Addresses", callback_data: "obituaries" }],
+        [{ text: "💰 Tax Sale → Owners",    callback_data: "taxsale" }],
       ],
     },
   });
@@ -134,7 +141,12 @@ function sendMenu(env, chatId) {
 async function trigger(env, choice, chatId) {
   const wf = WORKFLOWS[choice];
   if (!wf) return;
-  const label = choice === "dockets" ? "court docket names" : "obituary → property addresses";
+  const LABELS = {
+    dockets: "court docket names",
+    obituaries: "obituary → property addresses",
+    taxsale: "delinquent tax sale list + owners (this one takes a few minutes — ~140 lookups)",
+  };
+  const label = LABELS[choice] || "list";
   await tg(env, "sendMessage", {
     chat_id: chatId,
     text: `⏳ Pulling the latest ${label}… a minute or two, then the file lands here.`,

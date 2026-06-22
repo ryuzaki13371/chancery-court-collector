@@ -1,0 +1,65 @@
+name: Delinquent tax sale -> owner enrichment
+
+# Task C: download the Delinquent Tax Sale List PDF, pull each address, look it
+# up on the Trustee site to get the current owner, deliver to Telegram.
+#
+# On-demand only (the list changes slowly, and a run does ~140 address lookups).
+# Trigger from the bot's button/command, or the Actions "Run workflow" button.
+
+on:
+  workflow_dispatch:
+    inputs:
+      chat_id:
+        description: "Telegram chat to send results to (blank = all subscribers)"
+        required: false
+        default: ""
+      max_rows:
+        description: "Limit rows (for testing; blank = all)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Run the collector
+        env:
+          MAX_ROWS: ${{ github.event.inputs.max_rows }}
+        run: python DelinquentTaxCollector.py
+
+      - name: Save the result as a downloadable file
+        uses: actions/upload-artifact@v4
+        with:
+          name: delinquent-tax-sale-owners
+          path: DelinquentTaxSale_Owners.csv
+
+      - name: Send the results to Telegram
+        env:
+          BOT_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          CHAT_ID: ${{ github.event.inputs.chat_id }}
+          DEFAULT_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          FILE: DelinquentTaxSale_Owners.csv
+        run: |
+          COUNT=$(($(wc -l < DelinquentTaxSale_Owners.csv) - 1))
+          CAPTION="💰 Delinquent tax sale + owners — $(date -u +%Y-%m-%d) — ${COUNT} properties" \
+            python tools/notify.py
+
+      - name: Commit the updated results back to the repo
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add DelinquentTaxSale_Owners.csv
+          git diff --staged --quiet || git commit -m "Update delinquent tax sale owners ($(date -u +%Y-%m-%d))"
+          git push
