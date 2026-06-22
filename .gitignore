@@ -1,0 +1,4 @@
+# Generated lead data — delivered via Telegram, never committed to this public repo
+*.csv
+*.pdf
+!subscribers.txt
