@@ -36,7 +36,7 @@ def creds_token():
 
 
 def main():
-    sheet_id = os.environ["SHEET_ID"]
+    sheet_id = os.environ["SHEET_ID"].strip()       # guard against stray newline/space
     tab = os.environ["TAB"]
     key_col = int(os.environ.get("KEY_COL", "0"))
     rows = list(csv.reader(open(os.environ["CSV"], encoding="utf-8")))
