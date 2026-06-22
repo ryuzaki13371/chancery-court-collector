@@ -38,7 +38,7 @@ UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/124.0 Safari/537.36")
 THROTTLE = 2.0
 TIMEOUT = 30
-MAX_ROWS = int(os.environ.get("MAX_ROWS", "0"))   # 0 = all; >0 = quick test
+MAX_ROWS = int(os.environ.get("MAX_ROWS") or 0)   # 0/blank = all; >0 = quick test
 
 ROW = re.compile(
     r'^\s*(PAID\s+)?'

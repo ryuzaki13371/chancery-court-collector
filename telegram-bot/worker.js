@@ -144,12 +144,17 @@ async function trigger(env, choice, chatId) {
   const LABELS = {
     dockets: "court docket names",
     obituaries: "obituary → property addresses",
-    taxsale: "delinquent tax sale list + owners (this one takes a few minutes — ~140 lookups)",
+    taxsale: "delinquent tax sale list + owners",
+  };
+  const ETA = {
+    dockets: "about a minute",
+    obituaries: "about a minute",
+    taxsale: "about 5–7 minutes — it looks up ~140 owners one by one",
   };
   const label = LABELS[choice] || "list";
   await tg(env, "sendMessage", {
     chat_id: chatId,
-    text: `⏳ Pulling the latest ${label}… a minute or two, then the file lands here.`,
+    text: `⏳ Pulling the latest ${label}…\nThis takes ${ETA[choice] || "a minute or two"}, then the file lands here. You can close Telegram — it'll still arrive.`,
   });
   const resp = await dispatch(env, wf, { chat_id: String(chatId) });
   if (!resp.ok) {
