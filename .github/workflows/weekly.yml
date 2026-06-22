@@ -39,6 +39,17 @@ jobs:
           name: chancery-court-names
           path: ChanceryCourt_Names.csv
 
+      - name: Send the results to Telegram
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          COUNT=$(($(wc -l < ChanceryCourt_Names.csv) - 1))
+          curl -sS "https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendDocument" \
+            -F "chat_id=${TELEGRAM_CHAT_ID}" \
+            -F "document=@ChanceryCourt_Names.csv" \
+            -F "caption=📋 Chancery Court leads — $(date -u +%Y-%m-%d) — ${COUNT} names"
+
       - name: Commit the updated names back to the repo
         run: |
           git config user.name  "github-actions[bot]"
