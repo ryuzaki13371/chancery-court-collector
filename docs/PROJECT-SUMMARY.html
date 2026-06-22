@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lead Collector — Project Summary</title>
+<style>
+  :root{
+    --navy:#1f4e79; --navy2:#2e6da4; --ink:#1f2733; --muted:#5b6675;
+    --line:#d9e2ec; --stripe:#f3f7fc; --ok:#1a7f4b; --warn:#b26a00; --bg:#fff;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+    color:var(--ink);margin:0;line-height:1.55;background:var(--bg);font-size:14px}
+  .wrap{max-width:880px;margin:0 auto;padding:0 34px}
+  header{background:linear-gradient(135deg,var(--navy),var(--navy2));color:#fff;
+    padding:46px 0 38px;margin-bottom:8px}
+  header .wrap{display:block}
+  h1{margin:0 0 6px;font-size:30px;letter-spacing:.3px}
+  .sub{opacity:.92;font-size:15px;margin:0}
+  .meta{margin-top:16px;font-size:12.5px;opacity:.85}
+  h2{color:var(--navy);font-size:20px;margin:34px 0 10px;padding-bottom:6px;
+    border-bottom:2px solid var(--line)}
+  h3{font-size:15.5px;margin:18px 0 6px;color:var(--ink)}
+  p{margin:8px 0}
+  .lead{font-size:15px;color:var(--muted)}
+  ul,ol{margin:8px 0 8px 4px;padding-left:22px}
+  li{margin:4px 0}
+  code{background:#eef2f7;border:1px solid var(--line);border-radius:4px;
+    padding:1px 5px;font-family:SFMono-Regular,Consolas,monospace;font-size:12.5px}
+  .grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin:14px 0}
+  .card{border:1px solid var(--line);border-radius:10px;padding:16px;background:#fff;
+    box-shadow:0 1px 2px rgba(20,40,80,.04)}
+  .card .ic{font-size:22px}
+  .card h3{margin:6px 0 4px;color:var(--navy)}
+  .card .n{font-size:12px;color:var(--muted)}
+  table{border-collapse:collapse;width:100%;margin:12px 0;font-size:13px}
+  th,td{border:1px solid var(--line);padding:7px 9px;text-align:left;vertical-align:top}
+  th{background:var(--navy);color:#fff;font-weight:600}
+  tbody tr:nth-child(even){background:var(--stripe)}
+  .pill{display:inline-block;border-radius:20px;padding:1px 9px;font-size:11.5px;font-weight:600}
+  .pill.ok{background:#e3f5ea;color:var(--ok)}
+  .pill.warn{background:#fcf0db;color:var(--warn)}
+  .flow{background:var(--stripe);border:1px solid var(--line);border-radius:10px;
+    padding:16px 18px;font-family:SFMono-Regular,Consolas,monospace;font-size:12.5px;
+    white-space:pre;overflow-x:auto;line-height:1.5}
+  .note{border-left:4px solid var(--navy2);background:#f6f9fd;padding:10px 14px;
+    border-radius:0 8px 8px 0;margin:12px 0}
+  .note.warn{border-left-color:var(--warn);background:#fdf7ec}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  .kv{font-size:13px}
+  .kv b{color:var(--navy)}
+  footer{margin:40px 0 20px;padding-top:14px;border-top:2px solid var(--line);
+    color:var(--muted);font-size:12px}
+  .tag{display:inline-block;background:#eef2f7;border:1px solid var(--line);
+    border-radius:5px;padding:2px 8px;font-size:12px;margin:2px 3px 2px 0}
+  @media print{
+    header{padding:34px 0 26px}
+    h2{page-break-after:avoid} .card,table,.flow,.note{page-break-inside:avoid}
+    a{color:var(--navy);text-decoration:none}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <h1>Lead Collector — Project Summary</h1>
+    <p class="sub">Automated public-records lead collection for Hamilton County, TN</p>
+    <p class="meta">Prepared by M. Rizki Kurniawan &nbsp;·&nbsp; Client: Steven R. &nbsp;·&nbsp; June 2026</p>
+  </div>
+</header>
+
+<div class="wrap">
+
+<h2>What this is</h2>
+<p class="lead">Three automations that collect leads from public Hamilton County government
+records, clean and organize them, and deliver them automatically — into a Google Sheet,
+to Telegram, and as ready-to-read PDF/CSV files. Everything runs in the cloud for free.
+No server, no monthly subscription.</p>
+
+<div class="grid">
+  <div class="card">
+    <div class="ic">🏠</div>
+    <h3>Obituaries → Addresses</h3>
+    <p class="n">Obituary names from chattanoogan.com, reformatted to “Last First”, each
+    searched on the County Trustee property site to find a property address.</p>
+  </div>
+  <div class="card">
+    <div class="ic">📋</div>
+    <h3>Court Docket Names</h3>
+    <p class="n">Individual party names pulled from the Chancery Court “Current Motion Call
+    Docket” PDFs (Part 1 &amp; 2).</p>
+  </div>
+  <div class="card">
+    <div class="ic">💰</div>
+    <h3>Tax Sale → Owners</h3>
+    <p class="n">Every property on the Delinquent Tax Sale list — address, parcel, minimum
+    bid — with the current owner looked up on the Trustee site.</p>
+  </div>
+</div>
+
+<h2>How it works</h2>
+<div class="flow">SOURCE (gov website / PDF)
+        │
+        ▼
+  COLLECTOR (Python)         ── scrapes &amp; cleans the data
+        │
+        ▼
+  GitHub Actions (cloud)     ── runs it free, weekly + on demand
+        │
+        ├──►  Google Sheet   ── auto-fills, deduplicated, one tab per task
+        ├──►  Telegram bot    ── sends a neat PDF + a CSV
+        └──►  Run artifact    ── downloadable copy on the run page</div>
+
+<p>A small <b>Telegram bot</b> (@LeadCollectorHQ_bot) lets anyone pull the latest list on
+demand: open the bot, press <b>Start</b>, tap a button, and the file arrives in the chat in
+a minute or two. Pressing Start also subscribes that person to the automatic weekly delivery.</p>
+
+<h2>Where the data goes</h2>
+<table>
+  <thead><tr><th>Channel</th><th>What you get</th><th>When</th></tr></thead>
+  <tbody>
+    <tr><td><b>Google Sheet</b></td><td>One tab per task, auto-filled, de-duplicated, with
+      formatted headers &amp; filters</td><td>Every run</td></tr>
+    <tr><td><b>Telegram bot</b></td><td>A neat <b>PDF</b> (to read/print) + a <b>CSV</b>
+      (to sort/filter)</td><td>Weekly &amp; on demand</td></tr>
+    <tr><td><b>GitHub run page</b></td><td>Downloadable file copy (backup)</td><td>Every run</td></tr>
+  </tbody>
+</table>
+
+<h2>This week’s results (sample)</h2>
+<table>
+  <thead><tr><th>List</th><th>Collected</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td>📋 Chancery Court names</td><td><b>136 names</b></td><td>Part 1: 46 · Part 2: 90</td></tr>
+    <tr><td>🏠 Obituaries → addresses</td><td><b>20 names, 13 with an address</b></td>
+      <td>7 confident matches, 6 to verify, 7 blank (see note)</td></tr>
+    <tr><td>💰 Tax Sale → owners</td><td><b>179 properties, 142 owners</b></td>
+      <td>66 active leads · 113 redeemed · 37 vacant land</td></tr>
+  </tbody>
+</table>
+
+<div class="note warn">
+  <b>Why some address rows are blank (this is normal, not a fault).</b> The Trustee site only
+  lists the <i>current</i> owner. Someone who recently passed often isn’t the owner of record
+  anymore — the home may be in a spouse’s name, a trust, or already sold. So you get solid
+  addresses on many names and blanks on others. Every row is labelled
+  (<i>Matched / Possible — verify / No match</i>) so it’s transparent.
+</div>
+
+<h2>How to use it (for Steven)</h2>
+<ol>
+  <li><b>The Google Sheet</b> updates by itself — just open it. Three tabs:
+    <span class="tag">Chancery Court</span><span class="tag">Obituaries</span><span class="tag">Tax Sale</span></li>
+  <li><b>Pull a list any time from your phone:</b> open
+    <code>t.me/LeadCollectorHQ_bot</code> → press <b>Start</b> → tap a button. The file arrives in the chat.</li>
+  <li><b>Weekly delivery</b> arrives automatically once you’ve pressed Start. Send <code>/stop</code> to pause it, <code>/start</code> to resume.</li>
+</ol>
+
+<h3>Reading the columns</h3>
+<div class="two">
+  <div class="kv">
+    <p><b>Obituaries</b></p>
+    <ul>
+      <li><b>Search Name</b> — the “Last First” version searched</li>
+      <li><b>Property Address</b> — best match (blank if none)</li>
+      <li><b>Other Possible Addresses</b> — extra candidates</li>
+      <li><b>Match</b> — Matched / Possible — verify / No match / Common name — skipped</li>
+    </ul>
+  </div>
+  <div class="kv">
+    <p><b>Tax Sale</b></p>
+    <ul>
+      <li><b>Sale Status</b> — Active (going to sale) vs Redeemed</li>
+      <li><b>Property Address · Minimum Bid</b></li>
+      <li><b>Owner (from Trustee)</b> — the lead</li>
+      <li><b>Lookup</b> — Owner found / Vacant land / Not found</li>
+    </ul>
+  </div>
+</div>
+
+<h2>Cost &amp; reliability</h2>
+<table>
+  <thead><tr><th>Component</th><th>Role</th><th>Cost</th></tr></thead>
+  <tbody>
+    <tr><td>GitHub Actions</td><td>Runs the collectors in the cloud (weekly + on demand)</td><td><span class="pill ok">Free</span></td></tr>
+    <tr><td>Cloudflare Worker</td><td>Powers the Telegram bot buttons</td><td><span class="pill ok">Free</span></td></tr>
+    <tr><td>Google Sheets</td><td>Stores &amp; organizes the leads</td><td><span class="pill ok">Free</span></td></tr>
+    <tr><td>Telegram bot</td><td>Delivery + on-demand pulls</td><td><span class="pill ok">Free</span></td></tr>
+  </tbody>
+</table>
+<p><b>Total running cost: $0/month.</b> No server or VPS — the politeness delays built into the
+Trustee lookups keep the county site from blocking the automation.</p>
+
+<h2>What’s delivered vs. flexible</h2>
+<table>
+  <thead><tr><th>Steven’s request</th><th>Status</th></tr></thead>
+  <tbody>
+    <tr><td>Obituary names → Google Sheet, “Last First” format</td><td><span class="pill ok">Done</span></td></tr>
+    <tr><td>Search Trustee site → property address</td><td><span class="pill ok">Done</span></td></tr>
+    <tr><td>Chancery “Current Motion Call Docket” Part 1 &amp; 2 → names (skipping the excluded links)</td><td><span class="pill ok">Done</span></td></tr>
+    <tr><td>Delinquent Tax Sale list → addresses → Trustee lookup</td><td><span class="pill ok">Done</span></td></tr>
+    <tr><td>Runs once per week, reusable by you</td><td><span class="pill ok">Done</span></td></tr>
+    <tr><td>Tax-sale lookup: collect owner name (vs. mailing address / amount owed)</td><td><span class="pill warn">Confirm preference</span></td></tr>
+  </tbody>
+</table>
+
+<h2>Where everything lives</h2>
+<ul>
+  <li><b>Code:</b> GitHub repo <code>ryuzaki13371/chancery-court-collector</code> (public — code only, no lead data)</li>
+  <li><b>Bot:</b> <code>t.me/LeadCollectorHQ_bot</code> (Cloudflare Worker)</li>
+  <li><b>Data:</b> the shared Google Sheet + Telegram (lead data is never stored in the public repo)</li>
+</ul>
+
+<div class="note">
+  <b>Adding a new source later is easy.</b> The engine — formatting, matching, de-duplication,
+  weekly scheduling, Sheet + Telegram delivery — is reused. A new target only needs its own
+  page/PDF “reader”. Just send the link and what to collect.
+</div>
+
+<footer>
+  Lead Collector · Hamilton County (TN) public-records automation · Prepared for Steven R. ·
+  June 2026. All sources are public government records.
+</footer>
+
+</div>
+</body>
+</html>
