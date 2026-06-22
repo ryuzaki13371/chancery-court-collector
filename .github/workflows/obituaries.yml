@@ -29,7 +29,7 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: pip install requests reportlab
+        run: pip install requests reportlab google-auth
 
       - name: Run the collector
         run: python ObituaryPropertyCollector.py
@@ -55,3 +55,12 @@ jobs:
           COUNT=$(($(wc -l < Obituary_Addresses.csv) - 1))
           CAPTION="🏠 Obituary → address leads — $(date -u +%Y-%m-%d) — ${COUNT} names" \
             python tools/notify.py
+
+      - name: Append to the Google Sheet
+        env:
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+          SHEET_ID: ${{ secrets.SHEET_ID }}
+          CSV: Obituary_Addresses.csv
+          TAB: "Obituaries"
+          KEY_COL: "7"          # Source Link (unique per obituary)
+        run: python tools/to_sheet.py

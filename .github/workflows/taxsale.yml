@@ -31,11 +31,11 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install dependencies (poppler for the PDF + requests + reportlab)
+      - name: Install dependencies (poppler for the PDF + requests + reportlab + google-auth)
         run: |
           sudo apt-get update
           sudo apt-get install -y poppler-utils
-          pip install requests reportlab
+          pip install requests reportlab google-auth
 
       - name: Run the collector
         env:
@@ -63,3 +63,12 @@ jobs:
           COUNT=$(($(wc -l < DelinquentTaxSale_Owners.csv) - 1))
           CAPTION="💰 Delinquent tax sale + owners — $(date -u +%Y-%m-%d) — ${COUNT} properties" \
             python tools/notify.py
+
+      - name: Append to the Google Sheet
+        env:
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+          SHEET_ID: ${{ secrets.SHEET_ID }}
+          CSV: DelinquentTaxSale_Owners.csv
+          TAB: "Tax Sale"
+          KEY_COL: "5"          # Parcel (unique per property)
+        run: python tools/to_sheet.py
