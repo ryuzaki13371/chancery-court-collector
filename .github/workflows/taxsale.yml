@@ -31,8 +31,11 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install dependencies
-        run: pip install requests
+      - name: Install dependencies (poppler for the PDF + requests)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y poppler-utils
+          pip install requests
 
       - name: Run the collector
         env:
