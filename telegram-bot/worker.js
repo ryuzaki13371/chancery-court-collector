@@ -73,6 +73,8 @@ async function onMessage(msg, env) {
     // Subscribe this chat to the weekly auto-delivery (fire and forget).
     const who = [msg.chat.first_name, msg.chat.username].filter(Boolean).join(" @");
     await dispatch(env, "subscribe.yml", { chat_id: String(chatId), name: who || "" });
+  } else if (cmd === "/help") {
+    await sendMenu(env, chatId);
   } else if (cmd === "/dockets") {
     await trigger(env, "dockets", chatId);
   } else if (cmd === "/obituaries") {
@@ -90,11 +92,36 @@ async function onCallback(cq, env) {
   await trigger(env, cq.data, cq.message.chat.id);
 }
 
+const WELCOME = [
+  "👋 <b>Welcome to Lead Collector</b>",
+  "",
+  "I turn Hamilton County public records into ready-to-use lead lists and send them to you here as a spreadsheet (CSV) file.",
+  "",
+  "<b>What you can get</b>",
+  "",
+  "📋 <b>Court Dockets</b>",
+  "The people named in this week's Chancery Court “Motion Call” cases — foreclosures, estates, debts, divorces, and similar.",
+  "",
+  "🏠 <b>Obituary → Addresses</b>",
+  "This week's obituary names from chattanoogan.com, each searched on the County Trustee property site to find a property address.",
+  "",
+  "<b>How to use it</b>",
+  "Tap a button below 👇  Wait about 1–2 minutes. The file arrives right here in this chat.",
+  "",
+  "<b>📅 Automatic weekly delivery</b>",
+  "You're now subscribed — a fresh copy is sent here automatically every week. Send /stop anytime to turn that off, /start to rejoin.",
+  "",
+  "<b>⚠️ Why some address rows are blank (normal)</b>",
+  "The property site only lists <i>current</i> owners. Someone who recently passed often isn't the owner of record anymore (home in a spouse's name, a trust, or already sold), so there's no match. You'll get solid addresses on some names and blanks on others. Every row is labeled (matched / verify / no match) so it's clear.",
+  "",
+  "Tap a button to begin 👇",
+].join("\n");
+
 function sendMenu(env, chatId) {
   return tg(env, "sendMessage", {
     chat_id: chatId,
-    text: "👋 *Lead Collector*\n\nTap a button (or use the ☰ menu) to pull the latest list — it arrives here as a file in a minute or two. You'll also get a fresh copy automatically every week.",
-    parse_mode: "Markdown",
+    text: WELCOME,
+    parse_mode: "HTML",
     reply_markup: {
       inline_keyboard: [
         [{ text: "📋 Court Dockets",        callback_data: "dockets" }],
