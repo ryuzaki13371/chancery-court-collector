@@ -20,6 +20,7 @@ const WORKFLOWS = {
   obituaries: "obituaries.yml",   // Task A: obituary -> property addresses
   taxsale:    "taxsale.yml",      // Task C: delinquent tax sale -> owners
   owners:     "owners.yml",       // Task D: uploaded addresses -> owner + mailing address
+  deeds:      "deeds.yml",        // Task E: Register of Deeds recent affidavit names+addresses
 };
 
 export default {
@@ -87,6 +88,8 @@ async function onMessage(msg, env) {
     await trigger(env, "taxsale", chatId);
   } else if (cmd === "/owners") {
     await askForAddresses(env, chatId);
+  } else if (cmd === "/deeds") {
+    await trigger(env, "deeds", chatId);
   } else if (cmd === "/stop") {
     await dispatch(env, "subscribe.yml", { chat_id: String(chatId), name: "", action: "remove" });
     await tg(env, "sendMessage", { chat_id: chatId, text: "🔕 You're unsubscribed from the weekly auto-send. Tap /start to rejoin." });
@@ -158,6 +161,9 @@ const WELCOME = [
   "🔎 <b>Address → Owners</b>",
   "Upload your OWN list of property addresses (a .csv or .txt, one per line) and I'll return each property's owner name and MAILING address — in your mail-campaign format (LastName, FirstName, MiddleName, Address, City, State, ZipCode, Campaign).",
   "",
+  "🏛️ <b>Register of Deeds → Affidavits</b>",
+  "Recent affidavits (heirship/descent, loan-mod, etc.) from the Register of Deeds — party names + property address + parcel. (Uses Steven's subscription login; names/addresses only — PDFs stay manual.)",
+  "",
   "<b>How to use it</b>",
   "Tap a button below 👇  Wait about 1–2 minutes. The file arrives right here in this chat. (For “Address → Owners,” tap it, then send your address file.)",
   "",
@@ -181,6 +187,7 @@ function sendMenu(env, chatId) {
         [{ text: "🏠 Obituary → Addresses", callback_data: "obituaries" }],
         [{ text: "💰 Tax Sale → Owners",    callback_data: "taxsale" }],
         [{ text: "🔎 Address → Owners (upload)", callback_data: "owners" }],
+        [{ text: "🏛️ Register of Deeds → Affidavits", callback_data: "deeds" }],
       ],
     },
   });
@@ -193,11 +200,13 @@ async function trigger(env, choice, chatId) {
     dockets: "court docket names",
     obituaries: "obituary → property addresses",
     taxsale: "delinquent tax sale list + owners",
+    deeds: "Register of Deeds recent affidavit names + addresses",
   };
   const ETA = {
     dockets: "about a minute",
     obituaries: "about a minute",
     taxsale: "about 5–7 minutes — it looks up ~140 owners one by one",
+    deeds: "a minute or two",
   };
   const label = LABELS[choice] || "list";
   await tg(env, "sendMessage", {

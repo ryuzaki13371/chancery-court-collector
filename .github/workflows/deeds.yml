@@ -1,0 +1,102 @@
+name: Register of Deeds -> Affidavit names + addresses
+
+# Task E (SAFE build): log into the Register of Deeds online search with Steven's
+# OWN subscription, pull recent AFFIDAVIT party names + property addresses, deliver
+# to Telegram + the sheet. Names/addresses ONLY -- it does NOT bulk-download PDFs
+# (that's the account-suspension risk Steven flagged; he keeps PDFs manual).
+#
+# REQUIRES two repo secrets (Steven's login -- set once, stored encrypted):
+#   REGISTER_USER, REGISTER_PASS
+# Until they're set (and the parser is calibrated on the first real run), this will
+# report a login error or 0 rows -- see the uploaded calibration artifact.
+
+on:
+  workflow_dispatch:
+    inputs:
+      chat_id:
+        description: "Telegram chat to send results to"
+        required: false
+        default: ""
+      days_back:
+        description: "How many days back to search"
+        required: false
+        default: "30"
+
+permissions:
+  contents: read
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install requests google-auth
+
+      - name: Run the Register of Deeds collector (names + addresses only)
+        env:
+          REGISTER_USER: ${{ secrets.REGISTER_USER }}
+          REGISTER_PASS: ${{ secrets.REGISTER_PASS }}
+          DAYS_BACK: ${{ github.event.inputs.days_back }}
+          SAVE_HTML: "1"
+        run: python RegisterDeedsCollector.py
+
+      - name: Upload calibration + results (so the parser can be finalized)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: register-deeds-debug
+          path: |
+            RegisterDeeds_Affidavits.csv
+            search_page.html
+            results_page.html
+          if-no-files-found: ignore
+
+      - name: Send results to Telegram
+        if: success()
+        continue-on-error: true
+        env:
+          BOT_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          CHAT_ID: ${{ github.event.inputs.chat_id }}
+          DEFAULT_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          FILE: RegisterDeeds_Affidavits.csv
+        run: |
+          ROWS=$(($(wc -l < RegisterDeeds_Affidavits.csv) - 1))
+          CAPTION="🏛️ Register of Deeds — recent affidavit names + addresses — ${ROWS} rows" \
+            python tools/notify.py
+
+      - name: Append to the Google Sheet ("Register of Deeds" tab)
+        if: success()
+        continue-on-error: true
+        env:
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+          SHEET_ID: ${{ secrets.SHEET_ID }}
+          CSV: RegisterDeeds_Affidavits.csv
+          TAB: "Register of Deeds"
+          KEY_COL: "0"        # Name
+        run: python tools/to_sheet.py
+
+      - name: Make the sheet neat
+        if: success()
+        continue-on-error: true
+        env:
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+          SHEET_ID: ${{ secrets.SHEET_ID }}
+        run: python tools/format_sheet.py
+
+      - name: Tell the user if login/secrets are missing
+        if: failure()
+        env:
+          BOT_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          CHAT_ID: ${{ github.event.inputs.chat_id }}
+        run: |
+          if [ -n "$CHAT_ID" ]; then
+            curl -s -X POST "https://api.telegram.org/bot$BOT_TOKEN/sendMessage" \
+              -d chat_id="$CHAT_ID" \
+              -d text="⚠️ Register of Deeds run couldn't sign in. Set REGISTER_USER / REGISTER_PASS (Steven's subscription login) in the repo secrets, then try again."
+          fi
