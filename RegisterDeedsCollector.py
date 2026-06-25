@@ -54,8 +54,13 @@ UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
 TIMEOUT   = 30
 THROTTLE  = 3.0                                  # polite pause between requests
 DAYS_BACK = int(os.environ.get("DAYS_BACK", "30"))
-DOC_TYPE  = os.environ.get("DOC_TYPE", "A01-AFFIDAVIT")  # as shown in the dropdown
-MAX_PAGES = int(os.environ.get("MAX_PAGES", "5"))        # hard cap (politeness)
+# One OR MANY document types (comma-separated, as shown in the dropdown). Default is
+# just affidavits; after calibration the exact codes for other high-value lead types
+# (deeds, liens, etc.) get added here. Kept gentle on purpose -- this hits a PAID
+# account, so it stays a careful, capped crawl, never a bulk "grab everything".
+DOC_TYPES = [t.strip() for t in os.environ.get("DOC_TYPES",
+             os.environ.get("DOC_TYPE", "A01-AFFIDAVIT")).split(",") if t.strip()]
+MAX_PAGES = int(os.environ.get("MAX_PAGES", "5"))        # hard cap PER type (politeness)
 SAVE_HTML = os.environ.get("SAVE_HTML", "1") == "1"      # dump raw pages to calibrate
 
 USER = os.environ.get("REGISTER_USER", "")
@@ -112,11 +117,12 @@ def login(session):
 # ----------------------------------------------------------------------------
 # SEARCH + PARSE  (best-effort from the video; finalize against saved HTML)
 # ----------------------------------------------------------------------------
-def run_search(session, search_html):
-    """Submit a Document Search for DOC_TYPE over the last DAYS_BACK days.
+def run_search(session, search_html, doc_type, save_as=None):
+    """Submit a Document Search for one doc_type over the last DAYS_BACK days.
 
     Field names are taken from the saved Search.aspx form where possible; the
-    obvious ASP.NET ids are tried as a fallback. Always saves the response.
+    obvious ASP.NET ids are tried as a fallback. Saves the first response for
+    calibration.
     """
     payload = hidden_fields(search_html)
     # Best-effort field guesses (calibrate from search_page.html):
@@ -124,15 +130,15 @@ def run_search(session, search_html):
     for k in list(payload):
         low = k.lower()
         if low.endswith("ddldoctype") or "doctype" in low:
-            payload[k] = DOC_TYPE
+            payload[k] = doc_type
         if "rbldirection" in low or "back" in low:
             payload.setdefault(k, "Back")
-    # Try to set a "last 30/60/90" radio if present, else a date range.
-    payload.setdefault("ctl00$MainContent$ddlDocType", DOC_TYPE)
+    payload.setdefault("ctl00$MainContent$ddlDocType", doc_type)
     payload.setdefault("ctl00$MainContent$btnSearch", "Search")
     r = session.post(SEARCH_URL, data=payload, timeout=TIMEOUT,
                      headers={"Referer": SEARCH_URL})
-    save("results_page.html", r.text)
+    if save_as:
+        save(save_as, r.text)
     return r.text
 
 
@@ -206,19 +212,32 @@ def main():
     print("  login OK.")
     time.sleep(THROTTLE)
 
-    print(f"Searching: document type {DOC_TYPE}, last {DAYS_BACK} days (max {MAX_PAGES} pages) …")
-    results_html = run_search(session, chk.text)
-    time.sleep(THROTTLE)
-    rows = parse_results(results_html)
-    print(f"  parsed {len(rows)} party rows.")
+    print(f"Searching {len(DOC_TYPES)} document type(s), last {DAYS_BACK} days, "
+          f"max {MAX_PAGES} pages each — gently (this is a paid account) …")
+    all_rows, seen = [], set()
+    for i, dt in enumerate(DOC_TYPES):
+        print(f"  [{i+1}/{len(DOC_TYPES)}] {dt} …")
+        html_out = run_search(session, chk.text, dt,
+                              save_as="results_page.html" if i == 0 else None)
+        time.sleep(THROTTLE)                      # polite pause between each search
+        rows = parse_results(html_out)
+        for r in rows:
+            key = (r["name"].upper(), r["book_page"])
+            if key in seen:
+                continue
+            seen.add(key)
+            r["doc_type"] = dt
+            all_rows.append(r)
+        print(f"      +{len(rows)} rows")
 
     with open(OUTPUT_CSV, "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
-        w.writerow(["Name", "Doc Sub-Type", "Parcel", "City", "Book/Page", "Source"])
-        for r in rows:
-            w.writerow([r["name"], r["type_of"], r["parcel"], r["city"],
-                        r["book_page"], "Register of Deeds affidavit"])
+        w.writerow(["Name", "Doc Type", "Doc Sub-Type", "Parcel", "City", "Book/Page", "Source"])
+        for r in all_rows:
+            w.writerow([r["name"], r.get("doc_type", ""), r["type_of"], r["parcel"],
+                        r["city"], r["book_page"], "Register of Deeds"])
 
+    rows = all_rows
     print(f"\nDone. {len(rows)} rows -> {OUTPUT_CSV}")
     if not rows:
         print("NOTE: 0 rows usually means the parser needs calibrating against the "
