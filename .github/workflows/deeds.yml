@@ -98,5 +98,5 @@ jobs:
           if [ -n "$CHAT_ID" ]; then
             curl -s -X POST "https://api.telegram.org/bot$BOT_TOKEN/sendMessage" \
               -d chat_id="$CHAT_ID" \
-              -d text="⚠️ Register of Deeds run couldn't sign in. Set REGISTER_USER / REGISTER_PASS (Steven's subscription login) in the repo secrets, then try again."
+              -d text="🏛️ This button needs Steven's Register of Deeds login set up first (one time only). It uses his paid account, so it can't run until that login is added. Everything else works without it."
           fi
