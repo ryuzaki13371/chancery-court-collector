@@ -111,6 +111,8 @@ async function onMessage(msg, env) {
     await sendMenu(env, chatId);
   } else if (cmd === "/howto" || cmd === "/guide") {
     await sendHowTo(env, chatId);
+  } else if (cmd === "/deedssteps" || cmd === "/deedshelp") {
+    await sendDeedsSteps(env, chatId);
   } else if (cmd === "/dockets") {
     await trigger(env, "dockets", chatId);
   } else if (cmd === "/obituaries") {
@@ -144,6 +146,8 @@ async function onCallback(cq, env) {
     await askForDeedsLogin(env, chatId);              // 6th button: set up the deeds login
   } else if (cq.data === "howto") {
     await sendHowTo(env, chatId);                     // 7th button: full how-to guide
+  } else if (cq.data === "deedssteps") {
+    await sendDeedsSteps(env, chatId);                // 8th button: deeds step-by-step
   } else if (cq.data === "deeds") {
     await triggerDeeds(env, chatId);                  // checks the saved login first
   } else {
@@ -318,6 +322,7 @@ function registerCommands(env) {
     { command: "taxsale",    description: "Get delinquent tax sale list + owners" },
     { command: "owners",     description: "Upload addresses → get owners + mailing addresses" },
     { command: "deeds",      description: "Register of Deeds → recent names + addresses" },
+    { command: "deedssteps", description: "Register of Deeds: step-by-step guide" },
     { command: "setup",      description: "Set up your Register of Deeds login (one time)" },
     { command: "stop",       description: "Stop the weekly auto-delivery" },
   ];
@@ -338,6 +343,7 @@ function sendMenu(env, chatId) {
         [{ text: "🏛️ Register of Deeds → Affidavits", callback_data: "deeds" }],
         [{ text: "🔑 Set up Deeds Login", callback_data: "deedslogin" }],
         [{ text: "📖 How to use", callback_data: "howto" }],
+        [{ text: "🪜 Deeds: Step by Step", callback_data: "deedssteps" }],
       ],
     },
   });
@@ -381,6 +387,38 @@ const HOWTO = [
 
 function sendHowTo(env, chatId) {
   return tg(env, "sendMessage", { chat_id: chatId, text: HOWTO, parse_mode: "HTML",
+    disable_web_page_preview: true });
+}
+
+// Step-by-step JUST for the Register of Deeds feature — every step, in order.
+const DEEDS_STEPS = [
+  "🪜 <b>Register of Deeds — step by step</b>",
+  "Follow these in order. You only do Steps 1–2 the very first time.",
+  "",
+  "<b>STEP 1 — Set up your login (first time only)</b>",
+  "Tap 🔑 <b>Set up Deeds Login</b>.",
+  "",
+  "<b>STEP 2 — Send your login (first time only)</b>",
+  "Send one message in this exact form, with your real Register of Deeds login:",
+  "<code>/deedslogin USERNAME PASSWORD</code>",
+  "You'll see ✅ “Login saved.” (Then delete that message — it has your password.)",
+  "",
+  "<b>STEP 3 — Get the list</b>",
+  "Tap 🏛️ <b>Register of Deeds → Affidavits</b>. Wait about a minute.",
+  "A spreadsheet arrives with the recent <b>names + addresses</b>, each row <b>numbered</b> (#1, #2, #3 …). It's also saved to your Google Sheet automatically.",
+  "",
+  "<b>STEP 4 — Pick the documents you want (optional)</b>",
+  "Look at the numbered list. If you want the actual PDF documents for some rows, just reply with their numbers, like:",
+  "<code>3 7 12</code>   (or reply <code>all</code>)",
+  "",
+  "<b>STEP 5 — Get the PDFs</b>",
+  "Wait a few minutes — the documents you picked arrive here as a zip file 📎. (It goes slowly on purpose, to keep your paid account safe. Up to 25 at a time.)",
+  "",
+  "<b>That's it.</b> Next time, skip Steps 1–2 — just tap 🏛️ and you're at Step 3. ✅",
+].join("\n");
+
+function sendDeedsSteps(env, chatId) {
+  return tg(env, "sendMessage", { chat_id: chatId, text: DEEDS_STEPS, parse_mode: "HTML",
     disable_web_page_preview: true });
 }
 
