@@ -67,20 +67,42 @@ jobs:
           SHEET_ID: ${{ secrets.SHEET_ID }}
           CSV: OwnerLeads_Sheet.csv
           TAB: "Owners"
-          KEY_COL: "0"                  # composite Key = input address + owner (unique per row)
+          KEY_COL: "10"                 # the trailing Key column (unique per address+owner)
         run: |
-          # Build a keyed copy of the Full file so re-uploads don't duplicate rows.
+          # Build a neat, reordered copy for the sheet: one Address column, split
+          # city/state/zip, with the dedup Key tucked at the far right.
           python - <<'PY'
-          import csv
+          import csv, re
           rows = list(csv.reader(open("OwnerLeads_Full.csv", encoding="utf-8")))
-          out = []
-          for i, r in enumerate(rows):
-              key = "Key" if i == 0 else f"{r[0]}|{r[3]} {r[4]} {r[5]}".strip()
-              out.append([key] + r)
+          out = [["Address", "Owner", "LastName", "FirstName", "MiddleName",
+                  "Mailing Street", "City", "State", "Zip", "Status", "Key"]]
+          for r in rows[1:]:
+              if len(r) < 10:
+                  continue
+              addr = (r[1] or r[0]).strip()          # county address, else what was uploaded
+              csz = r[7].strip()                     # e.g. "Naples FL 34113"
+              city = state = zipc = ""
+              m = re.search(r"(\d{5}(?:-\d{4})?)\s*$", csz)
+              if m:
+                  zipc = m.group(1); csz = csz[:m.start()].strip()
+              toks = csz.split()
+              if toks and len(toks[-1]) == 2 and toks[-1].isalpha():
+                  state = toks[-1]; city = " ".join(toks[:-1])
+              else:
+                  city = csz
+              key = f"{r[0]}|{r[3]} {r[4]} {r[5]}".strip()
+              out.append([addr, r[2], r[3], r[4], r[5], r[6], city, state, zipc, r[9], key])
           csv.writer(open("OwnerLeads_Sheet.csv", "w", newline="", encoding="utf-8")).writerows(out)
-          print("built OwnerLeads_Sheet.csv:", len(out) - 1, "rows")
+          print("sheet rows:", len(out) - 1)
           PY
           python tools/to_sheet.py
+
+      - name: Make the sheet neat (bold header, freeze, auto-width, filter)
+        continue-on-error: true
+        env:
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+          SHEET_ID: ${{ secrets.SHEET_ID }}
+        run: python tools/format_sheet.py
 
       - name: Tell the user if it failed
         if: failure()
