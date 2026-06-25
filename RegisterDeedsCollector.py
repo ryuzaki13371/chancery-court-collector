@@ -345,10 +345,23 @@ def main():
                         r["parcel"], r["city"], r["book_page"], "Register of Deeds"])
 
     # Save the numbered pick-list (number -> document image_id) so the bot can map a
-    # reply like "3 7 12" back to the right PDFs.
+    # reply like "3 7 12" back to the right PDFs. Each item carries a readable "title"
+    # so the bot can show the full list in the chat for Steven to choose from.
+    def title(r):
+        bits = [r["name"]]
+        if r.get("type_of"):
+            bits.append(r["type_of"].title())
+        loc = r.get("parcel") or r.get("city")
+        if loc:
+            bits.append(loc)
+        if r.get("book_page"):
+            bits.append(r["book_page"])
+        return " — ".join(bits)
+
     picklist = {
         "items": [{"n": r["n"], "image_id": r.get("image_id", ""),
-                   "name": r["name"], "book_page": r["book_page"]}
+                   "name": r["name"], "book_page": r["book_page"],
+                   "title": title(r)}
                   for r in rows if r.get("image_id")]
     }
     with open(LIST_JSON, "w", encoding="utf-8") as f:
