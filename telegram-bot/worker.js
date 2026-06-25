@@ -86,12 +86,15 @@ async function onMessage(msg, env) {
   const chatId = msg.chat.id;
   const cmd = (msg.text || "").trim().toLowerCase().split("@")[0];
   if (cmd === "/start" || cmd === "/menu") {
+    await registerCommands(env);        // keep the slash-command menu up to date
     await sendMenu(env, chatId);
     // Subscribe this chat to the weekly auto-delivery (fire and forget).
     const who = [msg.chat.first_name, msg.chat.username].filter(Boolean).join(" @");
     await dispatch(env, "subscribe.yml", { chat_id: String(chatId), name: who || "" });
   } else if (cmd === "/help") {
     await sendMenu(env, chatId);
+  } else if (cmd === "/howto" || cmd === "/guide") {
+    await sendHowTo(env, chatId);
   } else if (cmd === "/dockets") {
     await trigger(env, "dockets", chatId);
   } else if (cmd === "/obituaries") {
@@ -121,6 +124,8 @@ async function onCallback(cq, env) {
     await askForAddresses(env, chatId);               // upload flow, not a one-tap trigger
   } else if (cq.data === "deedslogin") {
     await askForDeedsLogin(env, chatId);              // 6th button: set up the deeds login
+  } else if (cq.data === "howto") {
+    await sendHowTo(env, chatId);                     // 7th button: full how-to guide
   } else if (cq.data === "deeds") {
     await triggerDeeds(env, chatId);                  // checks the saved login first
   } else {
@@ -231,7 +236,7 @@ const WELCOME = [
   "Upload your OWN list of property addresses (a .csv or .txt, one per line) and I'll return each property's owner name and MAILING address — in your mail-campaign format (LastName, FirstName, MiddleName, Address, City, State, ZipCode, Campaign).",
   "",
   "🏛️ <b>Register of Deeds → Affidavits</b>",
-  "Recent affidavits (heirship/descent, loan-mod, etc.) from the Register of Deeds — party names + property address + parcel. (Uses Steven's subscription login; names/addresses only — PDFs stay manual.)",
+  "Recent affidavits (heirship/descent, loan-mod, etc.) from the Register of Deeds — party names + property address + parcel. Uses Steven's subscription login. Can also fetch the document PDFs (capped at 25 per run, slowly, to keep the account safe).",
   "",
   "🔑 <b>Set up Deeds Login</b>",
   "First time only: tap this to save your Register of Deeds username + password, so the 🏛️ button can sign in for you. After that you never do it again.",
@@ -248,6 +253,23 @@ const WELCOME = [
   "Tap a button to begin 👇",
 ].join("\n");
 
+// The slash-command menu (the list shown when you type "/"). The bot re-registers
+// this on every /start, so it's always current — no BotFather steps needed.
+function registerCommands(env) {
+  const commands = [
+    { command: "start",      description: "Welcome + the button menu + weekly auto-delivery" },
+    { command: "howto",      description: "How to use this bot (full guide)" },
+    { command: "dockets",    description: "Get court docket names now" },
+    { command: "obituaries", description: "Get obituary property addresses now" },
+    { command: "taxsale",    description: "Get delinquent tax sale list + owners" },
+    { command: "owners",     description: "Upload addresses → get owners + mailing addresses" },
+    { command: "deeds",      description: "Register of Deeds → recent names + addresses" },
+    { command: "setup",      description: "Set up your Register of Deeds login (one time)" },
+    { command: "stop",       description: "Stop the weekly auto-delivery" },
+  ];
+  return tg(env, "setMyCommands", { commands });
+}
+
 function sendMenu(env, chatId) {
   return tg(env, "sendMessage", {
     chat_id: chatId,
@@ -261,9 +283,49 @@ function sendMenu(env, chatId) {
         [{ text: "🔎 Address → Owners (upload)", callback_data: "owners" }],
         [{ text: "🏛️ Register of Deeds → Affidavits", callback_data: "deeds" }],
         [{ text: "🔑 Set up Deeds Login", callback_data: "deedslogin" }],
+        [{ text: "📖 How to use", callback_data: "howto" }],
       ],
     },
   });
+}
+
+// Full, plain-language guide. Covers every button, the workflow, the deeds login,
+// and the PDF cap (25) — so Steven knows everything.
+const HOWTO = [
+  "📖 <b>How to use Lead Collector</b>",
+  "",
+  "<b>The basic idea:</b> open the bot → tap a button → wait 1–2 minutes → a spreadsheet (CSV) drops into this chat. That's it.",
+  "",
+  "<b>The buttons</b>",
+  "📋 <b>Court Dockets</b> — this week's Chancery Court case names. ~1 min.",
+  "🏠 <b>Obituary → Addresses</b> — obituary names + a property address looked up for each. ~1 min.",
+  "💰 <b>Tax Sale → Owners</b> — the delinquent tax-sale list with each owner looked up. ~5–7 min (it's ~140 lookups).",
+  "🔎 <b>Address → Owners</b> — tap it, then SEND a .csv/.txt file of property addresses; you get back each owner + mailing address in your campaign format.",
+  "🏛️ <b>Register of Deeds</b> — recent affidavits (heirship, loan-mod…): party names + property address + parcel. Needs the one-time login below.",
+  "🔑 <b>Set up Deeds Login</b> — first time only (see below).",
+  "",
+  "<b>🔑 Setting up the Register of Deeds login (one time)</b>",
+  "1. Tap <b>Set up Deeds Login</b>.",
+  "2. Send one message: <code>/deedslogin USERNAME PASSWORD</code> (your Register of Deeds account).",
+  "3. It's saved. From then on, just tap 🏛️ — you never log in again.",
+  "(Tip: delete your password message afterward, just to be tidy.)",
+  "",
+  "<b>📎 About the PDF documents</b>",
+  "The 🏛️ button can also fetch the actual recorded PDF documents, sent as a zip. To stay safe on the paid account, it's <b>limited to 25 documents per run</b> and goes slowly. (Names + addresses always come; the PDFs are the optional extra.)",
+  "",
+  "<b>📅 Weekly auto-delivery</b>",
+  "Tapping /start signs you up — fresh lists arrive here automatically every week. Send /stop to turn it off, /start to rejoin.",
+  "",
+  "<b>⚠️ Why some rows are blank (normal)</b>",
+  "Property records only show CURRENT owners. Someone who recently passed often isn't the owner of record anymore (spouse, trust, or sold), so there's no match. Every row is labeled (matched / verify / no match) so it's clear.",
+  "",
+  "<b>How long things take</b>",
+  "Most buttons: 1–2 minutes. Tax Sale: 5–7 minutes. Register of Deeds with PDFs: a bit longer (it goes slow on purpose). You can close Telegram — the file still arrives.",
+].join("\n");
+
+function sendHowTo(env, chatId) {
+  return tg(env, "sendMessage", { chat_id: chatId, text: HOWTO, parse_mode: "HTML",
+    disable_web_page_preview: true });
 }
 
 async function trigger(env, choice, chatId) {
