@@ -37,6 +37,7 @@ import csv
 import sys
 import time
 import html
+import random
 
 import requests
 
@@ -52,8 +53,23 @@ OUTPUT_CSV = os.path.join(os.path.dirname(os.path.abspath(__file__)),
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/124.0 Safari/537.36")
 TIMEOUT   = 30
-THROTTLE  = 3.0                                  # polite pause between requests
+# Go slow + HUMAN-LIKE: wait a RANDOM number of seconds between actions (a fixed
+# interval looks like a bot; a varied one looks like a person reading). Tunable by
+# env so it can be made even gentler without touching code.
+SLOW_MIN  = float(os.environ.get("SLOW_MIN", "6"))    # min seconds between requests
+SLOW_MAX  = float(os.environ.get("SLOW_MAX", "14"))   # max seconds between requests
+BETWEEN_SEARCHES = float(os.environ.get("BETWEEN_SEARCHES", "25"))  # longer rest per type
 DAYS_BACK = int(os.environ.get("DAYS_BACK", "30"))
+
+
+def polite_sleep(longer=False):
+    """Pause a random, human-like amount. `longer` = the bigger rest between searches."""
+    if longer:
+        secs = BETWEEN_SEARCHES + random.uniform(0, 10)
+    else:
+        secs = random.uniform(SLOW_MIN, SLOW_MAX)
+    print(f"      …waiting {secs:.0f}s (going slow, like a person)")
+    time.sleep(secs)
 # One OR MANY document types (comma-separated, as shown in the dropdown). Default is
 # just affidavits; after calibration the exact codes for other high-value lead types
 # (deeds, liens, etc.) get added here. Kept gentle on purpose -- this hits a PAID
@@ -210,7 +226,7 @@ def main():
         sys.exit("ERROR: login failed (check REGISTER_USER / REGISTER_PASS, or the "
                  "subscription may be expired). The site bounced us back to Login.aspx.")
     print("  login OK.")
-    time.sleep(THROTTLE)
+    polite_sleep()
 
     print(f"Searching {len(DOC_TYPES)} document type(s), last {DAYS_BACK} days, "
           f"max {MAX_PAGES} pages each — gently (this is a paid account) …")
@@ -219,7 +235,7 @@ def main():
         print(f"  [{i+1}/{len(DOC_TYPES)}] {dt} …")
         html_out = run_search(session, chk.text, dt,
                               save_as="results_page.html" if i == 0 else None)
-        time.sleep(THROTTLE)                      # polite pause between each search
+        polite_sleep(longer=True)                 # longer human-like rest between searches
         rows = parse_results(html_out)
         for r in rows:
             key = (r["name"].upper(), r["book_page"])
