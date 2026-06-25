@@ -8,3 +8,14 @@ compatibility_date = "2024-01-01"
 
 [vars]
 GH_REPO = "ryuzaki13371/chancery-court-collector"
+
+# Bot "memory" that holds Steven's saved Register of Deeds login (Task E).
+# In the dashboard: Workers & Pages -> KV -> create a namespace, then bind it to
+# this Worker as CREDS (Worker -> Settings -> Variables -> KV Namespace Bindings).
+# If you deploy via `wrangler deploy` instead, uncomment and set the id:
+# [[kv_namespaces]]
+# binding = "CREDS"
+# id = "PUT_YOUR_KV_NAMESPACE_ID_HERE"
+
+# Also set (Worker -> Settings -> Variables -> add Variable/Secret):
+#   DEEDS_KEY = any random string; must match the GitHub secret DEEDS_KEY

@@ -25,6 +25,18 @@ const WORKFLOWS = {
 
 export default {
   async fetch(request, env) {
+    const url = new URL(request.url);
+
+    // Private endpoint: the deeds.yml GitHub Action fetches Steven's saved login
+    // from here (protected by DEEDS_KEY). Returns {user, pass} JSON or 404.
+    if (url.pathname === "/creds") {
+      const key = request.headers.get("X-Creds-Key") || url.searchParams.get("key") || "";
+      if (!env.DEEDS_KEY || key !== env.DEEDS_KEY) return new Response("forbidden", { status: 403 });
+      const saved = env.CREDS ? await env.CREDS.get("deeds") : null;
+      if (!saved) return new Response("{}", { status: 404, headers: { "Content-Type": "application/json" } });
+      return new Response(saved, { headers: { "Content-Type": "application/json" } });
+    }
+
     if (request.method !== "POST") return new Response("Lead Collector bot is running.");
     if (env.WEBHOOK_SECRET &&
         request.headers.get("X-Telegram-Bot-Api-Secret-Token") !== env.WEBHOOK_SECRET) {
@@ -89,7 +101,11 @@ async function onMessage(msg, env) {
   } else if (cmd === "/owners") {
     await askForAddresses(env, chatId);
   } else if (cmd === "/deeds") {
-    await trigger(env, "deeds", chatId);
+    await triggerDeeds(env, chatId);
+  } else if (cmd === "/deedslogin") {
+    await saveDeedsLogin(env, msg);
+  } else if (cmd === "/setup" || cmd === "/login") {
+    await askForDeedsLogin(env, chatId);
   } else if (cmd === "/stop") {
     await dispatch(env, "subscribe.yml", { chat_id: String(chatId), name: "", action: "remove" });
     await tg(env, "sendMessage", { chat_id: chatId, text: "🔕 You're unsubscribed from the weekly auto-send. Tap /start to rejoin." });
@@ -100,11 +116,64 @@ async function onMessage(msg, env) {
 
 async function onCallback(cq, env) {
   await tg(env, "answerCallbackQuery", { callback_query_id: cq.id }); // stop the spinner
+  const chatId = cq.message.chat.id;
   if (cq.data === "owners") {
-    await askForAddresses(env, cq.message.chat.id);   // upload flow, not a one-tap trigger
+    await askForAddresses(env, chatId);               // upload flow, not a one-tap trigger
+  } else if (cq.data === "deedslogin") {
+    await askForDeedsLogin(env, chatId);              // 6th button: set up the deeds login
+  } else if (cq.data === "deeds") {
+    await triggerDeeds(env, chatId);                  // checks the saved login first
   } else {
-    await trigger(env, cq.data, cq.message.chat.id);
+    await trigger(env, cq.data, chatId);
   }
+}
+
+// The 🏛️ button: only run if Steven's login is saved; otherwise guide him to set it up.
+async function triggerDeeds(env, chatId) {
+  const saved = env.CREDS ? await env.CREDS.get("deeds") : null;
+  if (!saved) {
+    await tg(env, "sendMessage", {
+      chat_id: chatId,
+      parse_mode: "HTML",
+      text: "🏛️ <b>One-time setup needed.</b> This button uses Steven's paid Register of Deeds account, so it needs his login first. Tap 🔑 <b>Set up Deeds Login</b> (or send /setup) to add it — just once.",
+    });
+    return;
+  }
+  await trigger(env, "deeds", chatId);
+}
+
+// ---- Register of Deeds login (Task E) -------------------------------------
+// Steven saves his subscription login once, right here in Telegram. It's stored
+// in the bot's memory (Cloudflare KV); the deeds.yml Action reads it from /creds.
+function askForDeedsLogin(env, chatId) {
+  return tg(env, "sendMessage", {
+    chat_id: chatId,
+    parse_mode: "HTML",
+    text: "🔑 <b>Set up your Register of Deeds login</b>\n\nSend me ONE message in exactly this form (put your real Register of Deeds username and password):\n\n<code>/deedslogin USERNAME PASSWORD</code>\n\nExample: <code>/deedslogin steven123 myPassw0rd</code>\n\nI'll save it securely so the 🏛️ button works. (After you send it, please delete that message — it has your password in it.)",
+  });
+}
+
+async function saveDeedsLogin(env, msg) {
+  const chatId = msg.chat.id;
+  const parts = (msg.text || "").trim().split(/\s+/);   // /deedslogin USER PASS...
+  const user = parts[1] || "";
+  const pass = parts.slice(2).join(" ");
+  if (!user || !pass) {
+    await askForDeedsLogin(env, chatId);
+    return;
+  }
+  if (!env.CREDS) {
+    await tg(env, "sendMessage", { chat_id: chatId, text: "⚠️ The login store isn't set up yet (the bot needs its CREDS memory connected). Tell the developer." });
+    return;
+  }
+  await env.CREDS.put("deeds", JSON.stringify({ user, pass }));
+  // Best-effort: remove the message that contains the password.
+  await tg(env, "deleteMessage", { chat_id: chatId, message_id: msg.message_id }).catch(() => {});
+  await tg(env, "sendMessage", {
+    chat_id: chatId,
+    parse_mode: "HTML",
+    text: "✅ <b>Login saved.</b> The 🏛️ <b>Register of Deeds</b> button works now — tap it any time.\n\n(If your message with the password is still visible above, delete it to be safe.)",
+  });
 }
 
 // Task D is different from the other buttons: it needs the user to upload a file
@@ -164,6 +233,9 @@ const WELCOME = [
   "🏛️ <b>Register of Deeds → Affidavits</b>",
   "Recent affidavits (heirship/descent, loan-mod, etc.) from the Register of Deeds — party names + property address + parcel. (Uses Steven's subscription login; names/addresses only — PDFs stay manual.)",
   "",
+  "🔑 <b>Set up Deeds Login</b>",
+  "First time only: tap this to save your Register of Deeds username + password, so the 🏛️ button can sign in for you. After that you never do it again.",
+  "",
   "<b>How to use it</b>",
   "Tap a button below 👇  Wait about 1–2 minutes. The file arrives right here in this chat. (For “Address → Owners,” tap it, then send your address file.)",
   "",
@@ -188,6 +260,7 @@ function sendMenu(env, chatId) {
         [{ text: "💰 Tax Sale → Owners",    callback_data: "taxsale" }],
         [{ text: "🔎 Address → Owners (upload)", callback_data: "owners" }],
         [{ text: "🏛️ Register of Deeds → Affidavits", callback_data: "deeds" }],
+        [{ text: "🔑 Set up Deeds Login", callback_data: "deedslogin" }],
       ],
     },
   });

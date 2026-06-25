@@ -5,10 +5,13 @@ name: Register of Deeds -> Affidavit names + addresses
 # to Telegram + the sheet. Names/addresses ONLY -- it does NOT bulk-download PDFs
 # (that's the account-suspension risk Steven flagged; he keeps PDFs manual).
 #
-# REQUIRES two repo secrets (Steven's login -- set once, stored encrypted):
-#   REGISTER_USER, REGISTER_PASS
-# Until they're set (and the parser is calibrated on the first real run), this will
-# report a login error or 0 rows -- see the uploaded calibration artifact.
+# Steven's login comes from the BOT'S MEMORY: he saves it once in Telegram (the
+# "🔑 Set up Deeds Login" button), the worker stores it, and this job fetches it
+# from the worker's /creds endpoint. So NO password is ever typed into GitHub.
+# Needs two repo secrets that point at the bot (set once by the developer):
+#   WORKER_URL  e.g. https://lead-collector-bot.<subdomain>.workers.dev
+#   DEEDS_KEY   the same random string set on the worker (protects /creds)
+# (Fallback: if REGISTER_USER/REGISTER_PASS secrets are set, those win.)
 
 on:
   workflow_dispatch:
@@ -38,10 +41,38 @@ jobs:
       - name: Install dependencies
         run: pip install requests google-auth
 
-      - name: Run the Register of Deeds collector (names + addresses only)
+      - name: Get Steven's saved login from the bot
         env:
           REGISTER_USER: ${{ secrets.REGISTER_USER }}
           REGISTER_PASS: ${{ secrets.REGISTER_PASS }}
+          WORKER_URL: ${{ secrets.WORKER_URL }}
+          DEEDS_KEY: ${{ secrets.DEEDS_KEY }}
+        run: |
+          set -e
+          # Prefer repo secrets if present; otherwise pull from the bot's memory.
+          if [ -n "$REGISTER_USER" ] && [ -n "$REGISTER_PASS" ]; then
+            echo "Using REGISTER_USER/REGISTER_PASS repo secrets."
+            echo "::add-mask::$REGISTER_USER"; echo "::add-mask::$REGISTER_PASS"
+            echo "REGISTER_USER=$REGISTER_USER" >> "$GITHUB_ENV"
+            echo "REGISTER_PASS=$REGISTER_PASS" >> "$GITHUB_ENV"
+          elif [ -n "$WORKER_URL" ] && [ -n "$DEEDS_KEY" ]; then
+            echo "Fetching saved login from the bot…"
+            curl -s -H "X-Creds-Key: $DEEDS_KEY" "${WORKER_URL%/}/creds" -o creds.json
+            U=$(python -c "import json;print(json.load(open('creds.json')).get('user',''))" 2>/dev/null || echo "")
+            P=$(python -c "import json;print(json.load(open('creds.json')).get('pass',''))" 2>/dev/null || echo "")
+            rm -f creds.json
+            if [ -z "$U" ] || [ -z "$P" ]; then
+              echo "No saved login yet."; exit 1
+            fi
+            echo "::add-mask::$U"; echo "::add-mask::$P"
+            echo "REGISTER_USER=$U" >> "$GITHUB_ENV"
+            echo "REGISTER_PASS=$P" >> "$GITHUB_ENV"
+          else
+            echo "No login source configured (need WORKER_URL+DEEDS_KEY, or REGISTER_* secrets)."; exit 1
+          fi
+
+      - name: Run the Register of Deeds collector (names + addresses only)
+        env:
           DAYS_BACK: ${{ github.event.inputs.days_back }}
           SAVE_HTML: "1"
         run: python RegisterDeedsCollector.py
@@ -98,5 +129,5 @@ jobs:
           if [ -n "$CHAT_ID" ]; then
             curl -s -X POST "https://api.telegram.org/bot$BOT_TOKEN/sendMessage" \
               -d chat_id="$CHAT_ID" \
-              -d text="🏛️ This button needs Steven's Register of Deeds login set up first (one time only). It uses his paid account, so it can't run until that login is added. Everything else works without it."
+              -d text="🏛️ Couldn't sign in to the Register of Deeds. If you haven't yet, tap 🔑 Set up Deeds Login (or send /setup) to save your username + password — just once. Then tap 🏛️ again."
           fi
