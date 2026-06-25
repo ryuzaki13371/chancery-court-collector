@@ -1,0 +1,71 @@
+name: Address -> Owners + mailing address
+
+# Task D: an uploaded list of property addresses -> owner names + MAILING addresses,
+# delivered back to the chat in the mail-campaign CSV format.
+#
+# Triggered by the bot (Cloudflare Worker) when a user uploads a .csv/.txt file:
+# the Worker passes the Telegram file_id + chat_id here.
+
+on:
+  workflow_dispatch:
+    inputs:
+      chat_id:
+        description: "Telegram chat to send results to"
+        required: true
+      file_id:
+        description: "Telegram file_id of the uploaded address list"
+        required: true
+      file_name:
+        description: "original file name (informational)"
+        required: false
+        default: "addresses.csv"
+
+permissions:
+  contents: read
+
+jobs:
+  lookup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Download the uploaded address file from Telegram
+        env:
+          BOT_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          FILE_ID: ${{ github.event.inputs.file_id }}
+        run: |
+          set -e
+          curl -s "https://api.telegram.org/bot$BOT_TOKEN/getFile?file_id=$FILE_ID" -o getfile.json
+          FILE_PATH=$(python -c "import json; print(json.load(open('getfile.json'))['result']['file_path'])")
+          curl -s -o input_addresses.csv "https://api.telegram.org/file/bot$BOT_TOKEN/$FILE_PATH"
+          echo "First lines of the uploaded file:"; head -5 input_addresses.csv
+
+      - name: Run the owner lookup
+        run: python OwnerLookupCollector.py input_addresses.csv
+
+      - name: Send the results back to Telegram (campaign + full review)
+        env:
+          BOT_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          CHAT_ID: ${{ github.event.inputs.chat_id }}
+          FILE: "OwnerLeads_Campaign.csv,OwnerLeads_Full.csv"
+        run: |
+          ROWS=$(($(wc -l < OwnerLeads_Campaign.csv) - 1))
+          CAPTION="🔎 Owners + mailing addresses — ${ROWS} rows (campaign format). The Full file adds property address / parcel / status." \
+            python tools/notify.py
+
+      - name: Tell the user if it failed
+        if: failure()
+        env:
+          BOT_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          CHAT_ID: ${{ github.event.inputs.chat_id }}
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot$BOT_TOKEN/sendMessage" \
+            -d chat_id="$CHAT_ID" \
+            -d text="⚠️ The owner lookup hit a snag. Make sure the file has one property address per line (or an Address column) and try again."

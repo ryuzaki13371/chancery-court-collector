@@ -19,6 +19,7 @@ const WORKFLOWS = {
   dockets:    "weekly.yml",       // Task B: court docket names
   obituaries: "obituaries.yml",   // Task A: obituary -> property addresses
   taxsale:    "taxsale.yml",      // Task C: delinquent tax sale -> owners
+  owners:     "owners.yml",       // Task D: uploaded addresses -> owner + mailing address
 };
 
 export default {
@@ -33,6 +34,8 @@ export default {
     try {
       if (update.message && update.message.text) {
         await onMessage(update.message, env);
+      } else if (update.message && update.message.document) {
+        await onDocument(update.message, env);
       } else if (update.callback_query) {
         await onCallback(update.callback_query, env);
       }
@@ -82,6 +85,8 @@ async function onMessage(msg, env) {
     await trigger(env, "obituaries", chatId);
   } else if (cmd === "/taxsale") {
     await trigger(env, "taxsale", chatId);
+  } else if (cmd === "/owners") {
+    await askForAddresses(env, chatId);
   } else if (cmd === "/stop") {
     await dispatch(env, "subscribe.yml", { chat_id: String(chatId), name: "", action: "remove" });
     await tg(env, "sendMessage", { chat_id: chatId, text: "🔕 You're unsubscribed from the weekly auto-send. Tap /start to rejoin." });
@@ -92,7 +97,46 @@ async function onMessage(msg, env) {
 
 async function onCallback(cq, env) {
   await tg(env, "answerCallbackQuery", { callback_query_id: cq.id }); // stop the spinner
-  await trigger(env, cq.data, cq.message.chat.id);
+  if (cq.data === "owners") {
+    await askForAddresses(env, cq.message.chat.id);   // upload flow, not a one-tap trigger
+  } else {
+    await trigger(env, cq.data, cq.message.chat.id);
+  }
+}
+
+// Task D is different from the other buttons: it needs the user to upload a file
+// of addresses first. Prompt for it; the uploaded document is handled by onDocument.
+function askForAddresses(env, chatId) {
+  return tg(env, "sendMessage", {
+    chat_id: chatId,
+    parse_mode: "HTML",
+    text: "📎 <b>Address → Owners</b>\nSend me your property addresses as a <b>.csv</b> or <b>.txt</b> file — one address per line (a CSV with an <i>Address</i> column works too).\n\nI'll look up each property's owner name + mailing address and send back a ready-to-use spreadsheet in your campaign format.",
+  });
+}
+
+async function onDocument(msg, env) {
+  const chatId = msg.chat.id;
+  const doc = msg.document || {};
+  const name = (doc.file_name || "").toLowerCase();
+  if (!(name.endsWith(".csv") || name.endsWith(".txt"))) {
+    await tg(env, "sendMessage", { chat_id: chatId, parse_mode: "HTML", text: "Please send a <b>.csv</b> or <b>.txt</b> file with one property address per line." });
+    return;
+  }
+  await tg(env, "sendMessage", {
+    chat_id: chatId,
+    text: "⏳ Got your file — looking up owners + mailing addresses… this can take a few minutes (each address is looked up one by one). The spreadsheet lands here when it's done. You can close Telegram.",
+  });
+  const resp = await dispatch(env, WORKFLOWS.owners, {
+    chat_id: String(chatId),
+    file_id: doc.file_id,
+    file_name: doc.file_name || "addresses.csv",
+  });
+  if (!resp.ok) {
+    await tg(env, "sendMessage", {
+      chat_id: chatId,
+      text: `⚠️ Couldn't start the lookup (GitHub returned ${resp.status}). Check the bot's GH_TOKEN / GH_REPO.`,
+    });
+  }
 }
 
 const WELCOME = [
@@ -111,8 +155,11 @@ const WELCOME = [
   "💰 <b>Tax Sale → Owners</b>",
   "Every property on the County's Delinquent Tax Sale list — address, parcel, and minimum bid — with the current owner's name looked up from the Trustee site. (Takes a few minutes; it's ~140 lookups.)",
   "",
+  "🔎 <b>Address → Owners</b>",
+  "Upload your OWN list of property addresses (a .csv or .txt, one per line) and I'll return each property's owner name and MAILING address — in your mail-campaign format (LastName, FirstName, MiddleName, Address, City, State, ZipCode, Campaign).",
+  "",
   "<b>How to use it</b>",
-  "Tap a button below 👇  Wait about 1–2 minutes. The file arrives right here in this chat.",
+  "Tap a button below 👇  Wait about 1–2 minutes. The file arrives right here in this chat. (For “Address → Owners,” tap it, then send your address file.)",
   "",
   "<b>📅 Automatic weekly delivery</b>",
   "You're now subscribed — a fresh copy is sent here automatically every week. Send /stop anytime to turn that off, /start to rejoin.",
@@ -133,6 +180,7 @@ function sendMenu(env, chatId) {
         [{ text: "📋 Court Dockets",        callback_data: "dockets" }],
         [{ text: "🏠 Obituary → Addresses", callback_data: "obituaries" }],
         [{ text: "💰 Tax Sale → Owners",    callback_data: "taxsale" }],
+        [{ text: "🔎 Address → Owners (upload)", callback_data: "owners" }],
       ],
     },
   });
