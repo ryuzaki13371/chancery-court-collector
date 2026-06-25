@@ -34,7 +34,7 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: pip install requests
+        run: pip install requests google-auth
 
       - name: Download the uploaded address file from Telegram
         env:
@@ -59,6 +59,28 @@ jobs:
           ROWS=$(($(wc -l < OwnerLeads_Campaign.csv) - 1))
           CAPTION="🔎 Owners + mailing addresses — ${ROWS} rows (campaign format). The Full file adds property address / parcel / status." \
             python tools/notify.py
+
+      - name: Append to the Google Sheet ("Owners" tab)
+        continue-on-error: true        # never let a sheet hiccup block the Telegram delivery
+        env:
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+          SHEET_ID: ${{ secrets.SHEET_ID }}
+          CSV: OwnerLeads_Sheet.csv
+          TAB: "Owners"
+          KEY_COL: "0"                  # composite Key = input address + owner (unique per row)
+        run: |
+          # Build a keyed copy of the Full file so re-uploads don't duplicate rows.
+          python - <<'PY'
+          import csv
+          rows = list(csv.reader(open("OwnerLeads_Full.csv", encoding="utf-8")))
+          out = []
+          for i, r in enumerate(rows):
+              key = "Key" if i == 0 else f"{r[0]}|{r[3]} {r[4]} {r[5]}".strip()
+              out.append([key] + r)
+          csv.writer(open("OwnerLeads_Sheet.csv", "w", newline="", encoding="utf-8")).writerows(out)
+          print("built OwnerLeads_Sheet.csv:", len(out) - 1, "rows")
+          PY
+          python tools/to_sheet.py
 
       - name: Tell the user if it failed
         if: failure()
