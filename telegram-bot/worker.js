@@ -37,6 +37,22 @@ export default {
       return new Response(saved, { headers: { "Content-Type": "application/json" } });
     }
 
+    // Private endpoint: the deeds.yml Action POSTs the numbered pick-list here after a
+    // search, so a later reply like "3 7 12" can be mapped back to the right PDFs.
+    // Body: { chat_id, items:[{n, image_id, name, book_page}] }  (protected by DEEDS_KEY)
+    if (url.pathname === "/savelist" && request.method === "POST") {
+      const key = request.headers.get("X-Creds-Key") || url.searchParams.get("key") || "";
+      if (!env.DEEDS_KEY || key !== env.DEEDS_KEY) return new Response("forbidden", { status: 403 });
+      if (!env.CREDS) return new Response("no store", { status: 500 });
+      let body;
+      try { body = await request.json(); } catch { return new Response("bad json", { status: 400 }); }
+      if (body && body.chat_id) {
+        await env.CREDS.put("list:" + body.chat_id, JSON.stringify(body.items || []),
+                            { expirationTtl: 86400 });   // forget after a day
+      }
+      return new Response("ok");
+    }
+
     if (request.method !== "POST") return new Response("Lead Collector bot is running.");
     if (env.WEBHOOK_SECRET &&
         request.headers.get("X-Telegram-Bot-Api-Secret-Token") !== env.WEBHOOK_SECRET) {
@@ -112,6 +128,8 @@ async function onMessage(msg, env) {
   } else if (cmd === "/stop") {
     await dispatch(env, "subscribe.yml", { chat_id: String(chatId), name: "", action: "remove" });
     await tg(env, "sendMessage", { chat_id: chatId, text: "🔕 You're unsubscribed from the weekly auto-send. Tap /start to rejoin." });
+  } else if (await maybeHandlePdfSelection(env, msg)) {
+    // handled: it was a "3 7 12" / "all" reply picking PDFs from the last deeds list
   } else {
     await tg(env, "sendMessage", { chat_id: chatId, text: "Send /start to see the menu." });
   }
@@ -179,6 +197,42 @@ async function saveDeedsLogin(env, msg) {
     parse_mode: "HTML",
     text: "✅ <b>Login saved.</b> The 🏛️ <b>Register of Deeds</b> button works now — tap it any time.\n\n(If your message with the password is still visible above, delete it to be safe.)",
   });
+}
+
+// If Steven replies with numbers ("3 7 12") or "all" AND he has a recent deeds
+// pick-list, fetch the PDFs for just those rows. Returns true if it handled the msg.
+async function maybeHandlePdfSelection(env, msg) {
+  const chatId = msg.chat.id;
+  const text = (msg.text || "").trim().toLowerCase();
+  if (!/^(all|\d[\d ,]*)$/.test(text)) return false;     // not a selection-looking reply
+  if (!env.CREDS) return false;
+  const raw = await env.CREDS.get("list:" + chatId);
+  if (!raw) return false;                                // no pending list -> not for us
+  let items;
+  try { items = JSON.parse(raw); } catch { return false; }
+  if (!Array.isArray(items) || !items.length) return false;
+
+  let chosen;
+  if (text === "all") {
+    chosen = items;
+  } else {
+    const nums = new Set(text.split(/[ ,]+/).filter(Boolean).map(Number));
+    chosen = items.filter((it) => nums.has(it.n));
+  }
+  if (!chosen.length) {
+    await tg(env, "sendMessage", { chat_id: chatId, text: "I couldn't match those numbers to the last list. Reply with the row numbers you want, e.g. 3 7 12 — or all." });
+    return true;
+  }
+  const ids = chosen.map((it) => it.image_id).filter(Boolean).join(",");
+  await tg(env, "sendMessage", {
+    chat_id: chatId,
+    text: `📎 Getting ${chosen.length} document(s)… I'll send them as a zip in a few minutes (going slow to keep the account safe).`,
+  });
+  const resp = await dispatch(env, "deedspdf.yml", { chat_id: String(chatId), image_ids: ids });
+  if (!resp.ok) {
+    await tg(env, "sendMessage", { chat_id: chatId, text: `⚠️ Couldn't start the document fetch (GitHub ${resp.status}).` });
+  }
+  return true;
 }
 
 // Task D is different from the other buttons: it needs the user to upload a file

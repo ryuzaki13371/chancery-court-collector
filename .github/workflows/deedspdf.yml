@@ -1,0 +1,77 @@
+name: Register of Deeds -> fetch SELECTED document PDFs
+
+# Triggered when Steven picks documents from the last deeds list (replies "3 7 12").
+# The bot passes the chosen documents' image_ids; this logs in and downloads JUST
+# those PDFs — slowly and capped — then sends them back as a zip. This is the
+# "selection of the pdf files" Steven asked for, done the safe way (only the few he
+# picked, never a bulk grab).
+
+on:
+  workflow_dispatch:
+    inputs:
+      chat_id:
+        description: "Telegram chat to send the PDFs to"
+        required: true
+      image_ids:
+        description: "Comma-separated document image ids to download"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  pdfs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Get Steven's saved login from the bot
+        env:
+          REGISTER_USER: ${{ secrets.REGISTER_USER }}
+          REGISTER_PASS: ${{ secrets.REGISTER_PASS }}
+          WORKER_URL: ${{ secrets.WORKER_URL }}
+          DEEDS_KEY: ${{ secrets.DEEDS_KEY }}
+        run: |
+          set -e
+          if [ -n "$REGISTER_USER" ] && [ -n "$REGISTER_PASS" ]; then
+            echo "::add-mask::$REGISTER_USER"; echo "::add-mask::$REGISTER_PASS"
+            echo "REGISTER_USER=$REGISTER_USER" >> "$GITHUB_ENV"
+            echo "REGISTER_PASS=$REGISTER_PASS" >> "$GITHUB_ENV"
+          elif [ -n "$WORKER_URL" ] && [ -n "$DEEDS_KEY" ]; then
+            curl -s -H "X-Creds-Key: $DEEDS_KEY" "${WORKER_URL%/}/creds" -o creds.json
+            U=$(python -c "import json;print(json.load(open('creds.json')).get('user',''))" 2>/dev/null || echo "")
+            P=$(python -c "import json;print(json.load(open('creds.json')).get('pass',''))" 2>/dev/null || echo "")
+            rm -f creds.json
+            [ -z "$U" ] || [ -z "$P" ] && { echo "No saved login."; exit 1; } || true
+            echo "::add-mask::$U"; echo "::add-mask::$P"
+            echo "REGISTER_USER=$U" >> "$GITHUB_ENV"
+            echo "REGISTER_PASS=$P" >> "$GITHUB_ENV"
+          else
+            echo "No login source configured."; exit 1
+          fi
+
+      - name: Download the chosen documents (slowly)
+        env:
+          IMAGE_IDS: ${{ github.event.inputs.image_ids }}
+        run: python RegisterDeedsCollector.py
+
+      - name: Zip and send the PDFs
+        env:
+          BOT_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          CHAT_ID: ${{ github.event.inputs.chat_id }}
+        run: |
+          if [ -d deeds_pdfs ] && [ -n "$(ls -A deeds_pdfs 2>/dev/null)" ]; then
+            zip -r -q RegisterDeeds_Selected_PDFs.zip deeds_pdfs
+            FILE="RegisterDeeds_Selected_PDFs.zip" \
+            CAPTION="📎 Your selected Register of Deeds document(s)." \
+              python tools/notify.py
+          else
+            curl -s -X POST "https://api.telegram.org/bot$BOT_TOKEN/sendMessage" \
+              -d chat_id="$CHAT_ID" \
+              -d text="⚠️ Couldn't fetch those documents (the PDF link may need calibrating on the first real run)."
+          fi

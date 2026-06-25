@@ -35,6 +35,7 @@ import os
 import re
 import csv
 import sys
+import json
 import time
 import html
 import random
@@ -85,6 +86,10 @@ SAVE_HTML = os.environ.get("SAVE_HTML", "1") == "1"      # dump raw pages to cal
 FETCH_PDFS = os.environ.get("FETCH_PDFS", "0") == "1"    # opt-in
 MAX_PDFS   = int(os.environ.get("MAX_PDFS", "25"))       # hard cap per run (safety)
 PDF_DIR    = os.path.join(os.path.dirname(os.path.abspath(__file__)), "deeds_pdfs")
+LIST_JSON  = os.path.join(os.path.dirname(os.path.abspath(__file__)), "RegisterDeeds_List.json")
+# "Selection" mode: if IMAGE_IDS is set (comma-separated), just log in and download
+# THOSE specific documents — this is how Steven picks the few he wants (safest).
+IMAGE_IDS  = [i.strip() for i in os.environ.get("IMAGE_IDS", "").split(",") if i.strip()]
 
 USER = os.environ.get("REGISTER_USER", "")
 PASS = os.environ.get("REGISTER_PASS", "")
@@ -174,31 +179,30 @@ TYPEOF_RE  = re.compile(r"\b(HEIRSHIP|MODIF|RELEASE|ASSIGN(?:MENT)?|DEED|LIEN|EA
 
 
 def parse_results(page_html):
-    """Best-effort extraction of (name, address, parcel, type_of, book_page)."""
-    # Strip tags but keep block boundaries; the real selectors get set after we
-    # see results_page.html, but this captures the visible text reliably.
-    text = re.sub(r"<(script|style)[^>]*>.*?</\1>", " ", page_html, flags=re.S | re.I)
-    text = re.sub(r"<br\s*/?>", "\n", text, flags=re.I)
-    text = re.sub(r"</(tr|div|table|p)>", "\n", text, flags=re.I)
-    text = re.sub(r"<[^>]+>", " ", text)
-    text = html.unescape(text)
-
-    # Split into result blocks at "N. AFFIDAVIT" headers if present.
-    blocks = re.split(r"\n\s*\d+\.\s*AFFIDAVIT", text)
+    """Best-effort extraction per result block: name, parcel, type, book/page, and
+    the document's image_id (so a row can be tied back to its PDF for selection).
+    Selectors finalize at calibration, but this captures the visible structure."""
+    raw = re.sub(r"<(script|style)[^>]*>.*?</\1>", " ", page_html, flags=re.S | re.I)
+    # Split into result blocks at "<n>. AFFIDAVIT" headers (tolerating tags between).
+    blocks = re.split(r"(?i)(?=\d+\s*\.\s*(?:<[^>]+>\s*)*AFFIDAVIT)", raw)
     rows, seen = [], set()
     for b in blocks:
+        img = IMAGEID_RE.search(b)
+        image_id = img.group(1) if img else ""
+        # Text version of this one block (keep line breaks for clean tokens).
+        t = re.sub(r"<br\s*/?>", "\n", b, flags=re.I)
+        t = re.sub(r"</(tr|div|table|p)>", "\n", t, flags=re.I)
+        t = html.unescape(re.sub(r"<[^>]+>", " ", t))
+
         names = [re.sub(r"\s+", " ", m.group(1)).strip(" .,")
-                 for m in PARTY_RE.finditer(b)]
+                 for m in PARTY_RE.finditer(t)]
         if not names:
             continue
-        bp = BOOKPAGE_RE.search(b)
-        tof = TYPEOF_RE.search(b)
-        parcel = ""
-        # parcel usually sits right after a CITY token; grab the last parcel-looking hit
-        pm = list(PARCEL_RE.finditer(b))
-        if pm:
-            parcel = re.sub(r"\s+", " ", pm[-1].group(1)).strip()
-        city = "CHATTANOOGA" if "CHATTANOOGA" in b.upper() else ""
+        bp = BOOKPAGE_RE.search(t)
+        tof = TYPEOF_RE.search(t)
+        pm = list(PARCEL_RE.finditer(t))
+        parcel = re.sub(r"\s+", " ", pm[-1].group(1)).strip() if pm else ""
+        city = "CHATTANOOGA" if "CHATTANOOGA" in t.upper() else ""
         for nm in names:
             if re.search(r"\b(BANK|LLC|INC|SYSTEMS|MORTGAGE|CORP|ASSOC|TRUST CO|COMPANY)\b", nm):
                 continue                          # skip lenders/orgs -> individuals only
@@ -212,6 +216,7 @@ def parse_results(page_html):
                 "parcel": parcel,
                 "city": city,
                 "book_page": bp.group(1) if bp else "",
+                "image_id": image_id,
             })
     return rows
 
@@ -297,6 +302,14 @@ def main():
     print("  login OK.")
     polite_sleep()
 
+    # ---- SELECTION MODE: Steven picked specific documents -> download just those.
+    if IMAGE_IDS:
+        print(f"Selection mode: downloading {len(IMAGE_IDS)} chosen document(s) — "
+              f"slowly, capped at {MAX_PDFS} …")
+        download_pdfs(session, IMAGE_IDS)
+        return
+
+    # ---- NORMAL MODE: search + names/addresses, build a numbered pick-list.
     print(f"Searching {len(DOC_TYPES)} document type(s), last {DAYS_BACK} days, "
           f"max {MAX_PAGES} pages each — gently (this is a paid account) …")
     all_rows, seen = [], set()
@@ -319,31 +332,38 @@ def main():
             all_rows.append(r)
         print(f"      +{len(rows)} rows")
 
+    rows = all_rows
+    # Number every row so Steven can pick by number ("reply 3 7 12").
+    for n, r in enumerate(rows, 1):
+        r["n"] = n
+
     with open(OUTPUT_CSV, "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
-        w.writerow(["Name", "Doc Type", "Doc Sub-Type", "Parcel", "City", "Book/Page", "Source"])
-        for r in all_rows:
-            w.writerow([r["name"], r.get("doc_type", ""), r["type_of"], r["parcel"],
-                        r["city"], r["book_page"], "Register of Deeds"])
+        w.writerow(["#", "Name", "Doc Type", "Doc Sub-Type", "Parcel", "City", "Book/Page", "Source"])
+        for r in rows:
+            w.writerow([r["n"], r["name"], r.get("doc_type", ""), r["type_of"],
+                        r["parcel"], r["city"], r["book_page"], "Register of Deeds"])
 
-    rows = all_rows
+    # Save the numbered pick-list (number -> document image_id) so the bot can map a
+    # reply like "3 7 12" back to the right PDFs.
+    picklist = {
+        "items": [{"n": r["n"], "image_id": r.get("image_id", ""),
+                   "name": r["name"], "book_page": r["book_page"]}
+                  for r in rows if r.get("image_id")]
+    }
+    with open(LIST_JSON, "w", encoding="utf-8") as f:
+        json.dump(picklist, f)
+
     print(f"\nNames/addresses: {len(rows)} rows -> {OUTPUT_CSV}")
+    print(f"Pick-list: {len(picklist['items'])} selectable document(s) -> {LIST_JSON}")
     if not rows:
         print("NOTE: 0 rows usually means the parser needs calibrating against the "
               "real page. Check the saved results_page.html artifact.")
 
-    # The "selection of the pdf files" Steven asked for — only if turned on (safety).
-    if FETCH_PDFS:
-        if image_ids:
-            print(f"\nFETCH_PDFS on — found {len(image_ids)} document(s); fetching the "
-                  f"first {min(len(image_ids), MAX_PDFS)} slowly …")
-            download_pdfs(session, image_ids)
-        else:
-            print("\nFETCH_PDFS on, but no document image-ids were found "
-                  "(parser/calibration needed — check results_page.html).")
-    else:
-        print("\n(PDF download is OFF — set FETCH_PDFS=1 to also grab the documents, "
-              "slowly and capped. It's the higher-risk part, so it's opt-in.)")
+    # Optional bulk PDF (off by default). Selection mode above is the preferred path.
+    if FETCH_PDFS and image_ids:
+        print(f"\nFETCH_PDFS on — grabbing up to {MAX_PDFS} document(s) slowly …")
+        download_pdfs(session, image_ids)
 
 
 if __name__ == "__main__":

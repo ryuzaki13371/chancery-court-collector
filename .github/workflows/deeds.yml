@@ -125,6 +125,29 @@ jobs:
               python tools/notify.py
           fi
 
+      - name: Save the pick-list to the bot + invite Steven to choose PDFs
+        if: success()
+        continue-on-error: true
+        env:
+          BOT_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          CHAT_ID: ${{ github.event.inputs.chat_id }}
+          WORKER_URL: ${{ secrets.WORKER_URL }}
+          DEEDS_KEY: ${{ secrets.DEEDS_KEY }}
+        run: |
+          # Tell the bot which numbered rows map to which documents (so a reply like
+          # "3 7 12" can fetch just those PDFs). Needs a chat to reply to + the worker.
+          if [ -n "$CHAT_ID" ] && [ -n "$WORKER_URL" ] && [ -n "$DEEDS_KEY" ] && [ -s RegisterDeeds_List.json ]; then
+            COUNT=$(python -c "import json;print(len(json.load(open('RegisterDeeds_List.json')).get('items',[])))" 2>/dev/null || echo 0)
+            if [ "$COUNT" -gt 0 ]; then
+              python -c "import json;d=json.load(open('RegisterDeeds_List.json'));d['chat_id']='$CHAT_ID';json.dump(d,open('payload.json','w'))"
+              curl -s -X POST "${WORKER_URL%/}/savelist" -H "X-Creds-Key: $DEEDS_KEY" \
+                   -H "Content-Type: application/json" --data @payload.json >/dev/null || true
+              curl -s -X POST "https://api.telegram.org/bot$BOT_TOKEN/sendMessage" \
+                   -d chat_id="$CHAT_ID" \
+                   -d text="📎 Want the actual document PDFs for any of these? Reply with the row numbers (the # column), e.g. 3 7 12 — or all. I'll send just those, slowly."
+            fi
+          fi
+
       - name: Append to the Google Sheet ("Register of Deeds" tab)
         if: success()
         continue-on-error: true
@@ -133,7 +156,7 @@ jobs:
           SHEET_ID: ${{ secrets.SHEET_ID }}
           CSV: RegisterDeeds_Affidavits.csv
           TAB: "Register of Deeds"
-          KEY_COL: "0"        # Name
+          KEY_COL: "1"        # Name (col 0 is now the # number)
         run: python tools/to_sheet.py
 
       - name: Make the sheet neat
