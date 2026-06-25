@@ -79,6 +79,13 @@ DOC_TYPES = [t.strip() for t in os.environ.get("DOC_TYPES",
 MAX_PAGES = int(os.environ.get("MAX_PAGES", "5"))        # hard cap PER type (politeness)
 SAVE_HTML = os.environ.get("SAVE_HTML", "1") == "1"      # dump raw pages to calibrate
 
+# PDF download (the "selection of the pdf files" Steven asked for). This is the
+# HIGHER-RISK part, so it's: OFF unless turned on, hard-capped, slow, and grabs only
+# the documents for the records we FOUND (the leads) -- never every doc on the site.
+FETCH_PDFS = os.environ.get("FETCH_PDFS", "0") == "1"    # opt-in
+MAX_PDFS   = int(os.environ.get("MAX_PDFS", "25"))       # hard cap per run (safety)
+PDF_DIR    = os.path.join(os.path.dirname(os.path.abspath(__file__)), "deeds_pdfs")
+
 USER = os.environ.get("REGISTER_USER", "")
 PASS = os.environ.get("REGISTER_PASS", "")
 
@@ -209,6 +216,68 @@ def parse_results(page_html):
     return rows
 
 
+# Each result links its document image, e.g. PDFViewer.aspx?ImageID=4090867 (seen in
+# the video). Collect those image ids so we can fetch the matching PDFs.
+IMAGEID_RE = re.compile(r"ImageID=(\d+)", re.I)
+
+
+def find_image_ids(results_html):
+    seen, ids = set(), []
+    for m in IMAGEID_RE.finditer(results_html):
+        i = m.group(1)
+        if i not in seen:
+            seen.add(i); ids.append(i)
+    return ids
+
+
+def download_pdfs(session, image_ids):
+    """Download the document PDFs for the records we found — SLOWLY and CAPPED.
+
+    This is the suspension-risk part, so: hard cap (MAX_PDFS), a human-like pause
+    before each one, and only the leads' documents. The exact PDF byte URL is
+    finalized at calibration (the viewer is PDFViewer.aspx?ImageID=…; the real
+    download link is read from that page on the first authenticated run).
+    """
+    os.makedirs(PDF_DIR, exist_ok=True)
+    todo = image_ids[:MAX_PDFS]
+    got = 0
+    print(f"  Downloading up to {len(todo)} document PDF(s) — slowly (capped at {MAX_PDFS}) …")
+    for n, img in enumerate(todo, 1):
+        polite_sleep()                                  # slow, human-like, before each
+        viewer = f"{BASE}PDFViewer.aspx?ImageID={img}&ImageTypeID=2&BookTypeID=1"
+        try:
+            r = session.get(viewer, timeout=TIMEOUT)
+            # If the viewer returns the PDF bytes directly, save them; otherwise look
+            # for the real document link inside the viewer page (calibrated later).
+            ctype = r.headers.get("Content-Type", "")
+            if "pdf" in ctype.lower() or r.content[:4] == b"%PDF":
+                path = os.path.join(PDF_DIR, f"deed_{img}.pdf")
+                with open(path, "wb") as f:
+                    f.write(r.content)
+                got += 1
+                print(f"    [{n}/{len(todo)}] saved deed_{img}.pdf")
+            else:
+                m = re.search(r'(?:src|href|data)="([^"]+\.(?:pdf|tif{1,2})[^"]*)"', r.text, re.I)
+                if m:
+                    doc = m.group(1)
+                    if not doc.startswith("http"):
+                        doc = BASE + doc.lstrip("/")
+                    polite_sleep()
+                    rr = session.get(doc, timeout=TIMEOUT)
+                    if rr.content[:4] in (b"%PDF", b"II*\x00", b"MM\x00*"):
+                        path = os.path.join(PDF_DIR, f"deed_{img}.pdf")
+                        with open(path, "wb") as f:
+                            f.write(rr.content)
+                        got += 1
+                        print(f"    [{n}/{len(todo)}] saved deed_{img}.pdf")
+                else:
+                    print(f"    [{n}/{len(todo)}] couldn't find the PDF link yet (calibrate)")
+        except requests.RequestException as e:
+            print(f"    [{n}/{len(todo)}] download error: {e}")
+    print(f"  PDFs saved: {got} -> {PDF_DIR}")
+    return got
+
+
 # ----------------------------------------------------------------------------
 # MAIN
 # ----------------------------------------------------------------------------
@@ -231,12 +300,16 @@ def main():
     print(f"Searching {len(DOC_TYPES)} document type(s), last {DAYS_BACK} days, "
           f"max {MAX_PAGES} pages each — gently (this is a paid account) …")
     all_rows, seen = [], set()
+    image_ids = []
     for i, dt in enumerate(DOC_TYPES):
         print(f"  [{i+1}/{len(DOC_TYPES)}] {dt} …")
         html_out = run_search(session, chk.text, dt,
                               save_as="results_page.html" if i == 0 else None)
         polite_sleep(longer=True)                 # longer human-like rest between searches
         rows = parse_results(html_out)
+        for img in find_image_ids(html_out):
+            if img not in image_ids:
+                image_ids.append(img)
         for r in rows:
             key = (r["name"].upper(), r["book_page"])
             if key in seen:
@@ -254,10 +327,23 @@ def main():
                         r["city"], r["book_page"], "Register of Deeds"])
 
     rows = all_rows
-    print(f"\nDone. {len(rows)} rows -> {OUTPUT_CSV}")
+    print(f"\nNames/addresses: {len(rows)} rows -> {OUTPUT_CSV}")
     if not rows:
         print("NOTE: 0 rows usually means the parser needs calibrating against the "
               "real page. Check the saved results_page.html artifact.")
+
+    # The "selection of the pdf files" Steven asked for — only if turned on (safety).
+    if FETCH_PDFS:
+        if image_ids:
+            print(f"\nFETCH_PDFS on — found {len(image_ids)} document(s); fetching the "
+                  f"first {min(len(image_ids), MAX_PDFS)} slowly …")
+            download_pdfs(session, image_ids)
+        else:
+            print("\nFETCH_PDFS on, but no document image-ids were found "
+                  "(parser/calibration needed — check results_page.html).")
+    else:
+        print("\n(PDF download is OFF — set FETCH_PDFS=1 to also grab the documents, "
+              "slowly and capped. It's the higher-risk part, so it's opt-in.)")
 
 
 if __name__ == "__main__":

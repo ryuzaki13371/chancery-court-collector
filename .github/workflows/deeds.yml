@@ -24,6 +24,10 @@ on:
         description: "How many days back to search"
         required: false
         default: "30"
+      fetch_pdfs:
+        description: "Also download the document PDFs? 1 = yes (slower, higher risk), 0 = no"
+        required: false
+        default: "0"
 
 permissions:
   contents: read
@@ -71,11 +75,24 @@ jobs:
             echo "No login source configured (need WORKER_URL+DEEDS_KEY, or REGISTER_* secrets)."; exit 1
           fi
 
-      - name: Run the Register of Deeds collector (names + addresses only)
+      - name: Run the Register of Deeds collector (names + addresses, optional PDFs)
         env:
           DAYS_BACK: ${{ github.event.inputs.days_back }}
+          FETCH_PDFS: ${{ github.event.inputs.fetch_pdfs }}
           SAVE_HTML: "1"
         run: python RegisterDeedsCollector.py
+
+      - name: Zip the PDFs if any were downloaded
+        if: success()
+        id: zippdf
+        run: |
+          if [ -d deeds_pdfs ] && [ -n "$(ls -A deeds_pdfs 2>/dev/null)" ]; then
+            zip -r -q RegisterDeeds_PDFs.zip deeds_pdfs
+            echo "have_pdfs=1" >> "$GITHUB_OUTPUT"
+            echo "Zipped $(ls deeds_pdfs | wc -l) PDF(s)."
+          else
+            echo "have_pdfs=0" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Upload calibration + results (so the parser can be finalized)
         if: always()
@@ -84,22 +101,29 @@ jobs:
           name: register-deeds-debug
           path: |
             RegisterDeeds_Affidavits.csv
+            RegisterDeeds_PDFs.zip
             search_page.html
             results_page.html
           if-no-files-found: ignore
 
-      - name: Send results to Telegram
+      - name: Send results to Telegram (CSV, plus the PDF zip if any)
         if: success()
         continue-on-error: true
         env:
           BOT_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           CHAT_ID: ${{ github.event.inputs.chat_id }}
           DEFAULT_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          FILE: RegisterDeeds_Affidavits.csv
         run: |
           ROWS=$(($(wc -l < RegisterDeeds_Affidavits.csv) - 1))
-          CAPTION="🏛️ Register of Deeds — recent affidavit names + addresses — ${ROWS} rows" \
-            python tools/notify.py
+          if [ "${{ steps.zippdf.outputs.have_pdfs }}" = "1" ]; then
+            FILE="RegisterDeeds_Affidavits.csv,RegisterDeeds_PDFs.zip" \
+            CAPTION="🏛️ Register of Deeds — ${ROWS} names + addresses, plus the document PDFs" \
+              python tools/notify.py
+          else
+            FILE="RegisterDeeds_Affidavits.csv" \
+            CAPTION="🏛️ Register of Deeds — recent affidavit names + addresses — ${ROWS} rows" \
+              python tools/notify.py
+          fi
 
       - name: Append to the Google Sheet ("Register of Deeds" tab)
         if: success()
