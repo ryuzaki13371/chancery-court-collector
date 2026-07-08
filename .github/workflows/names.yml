@@ -1,0 +1,101 @@
+name: Name -> Address
+
+# The REVERSE of Address -> Owners: an uploaded/pasted list of OWNER NAMES
+# (last name first) -> each one's property + mailing address, in the campaign CSV.
+# This is how chancery-court case names get an address.
+#
+# Triggered by the bot (Cloudflare Worker) with chat_id + EITHER:
+#   - file_id    : a Telegram-uploaded .csv/.txt of names, OR
+#   - names_text : names pasted straight into the chat (one per line).
+
+on:
+  workflow_dispatch:
+    inputs:
+      chat_id:
+        description: "Telegram chat to send results to"
+        required: true
+      file_id:
+        description: "Telegram file_id of an uploaded name list (optional)"
+        required: false
+        default: ""
+      names_text:
+        description: "names pasted in chat, one per line (optional)"
+        required: false
+        default: ""
+      file_name:
+        description: "original file name (informational)"
+        required: false
+        default: "names.csv"
+
+permissions:
+  contents: read
+
+jobs:
+  lookup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install requests google-auth
+
+      - name: Get the names (uploaded file, else pasted text)
+        env:
+          BOT_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          FILE_ID: ${{ github.event.inputs.file_id }}
+          NAMES_TEXT: ${{ github.event.inputs.names_text }}
+        run: |
+          set -e
+          if [ -n "$FILE_ID" ]; then
+            curl -s "https://api.telegram.org/bot$BOT_TOKEN/getFile?file_id=$FILE_ID" -o getfile.json
+            FILE_PATH=$(python -c "import json; print(json.load(open('getfile.json'))['result']['file_path'])")
+            curl -s -o input_names.csv "https://api.telegram.org/file/bot$BOT_TOKEN/$FILE_PATH"
+          else
+            printf '%s\n' "$NAMES_TEXT" > input_names.csv
+          fi
+          echo "First lines of the names input:"; head -5 input_names.csv
+
+      - name: Run the name -> address lookup
+        run: python NameLookupCollector.py input_names.csv
+
+      - name: Send the results back to Telegram (campaign + full review)
+        env:
+          BOT_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          CHAT_ID: ${{ github.event.inputs.chat_id }}
+          FILE: "NameLeads_Campaign.csv,NameLeads_Full.csv"
+        run: |
+          FOUND=$(($(wc -l < NameLeads_Campaign.csv) - 1))
+          TOTAL=$(($(wc -l < NameLeads_Full.csv) - 1))
+          CAPTION="👤 Name → Address — ${FOUND} of ${TOTAL} names had an address (campaign format). The Full file shows which names matched." \
+            python tools/notify.py
+
+      - name: Append to the Google Sheet ("Names" tab)
+        continue-on-error: true        # never let a sheet hiccup block the Telegram delivery
+        env:
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+          SHEET_ID: ${{ secrets.SHEET_ID }}
+          CSV: NameLeads_Sheet.csv
+          TAB: "Names"
+          KEY_COL: "10"                 # the trailing Key column (unique per name+address)
+        run: python tools/to_sheet.py
+
+      - name: Make the sheet neat (bold header, freeze, auto-width, filter)
+        continue-on-error: true
+        env:
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+          SHEET_ID: ${{ secrets.SHEET_ID }}
+        run: python tools/format_sheet.py
+
+      - name: Tell the user if it failed
+        if: failure()
+        env:
+          BOT_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          CHAT_ID: ${{ github.event.inputs.chat_id }}
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot$BOT_TOKEN/sendMessage" \
+            -d chat_id="$CHAT_ID" \
+            -d text="⚠️ The name lookup hit a snag. Send names one per line as Last, First (or a CSV with LastName/FirstName columns) and try again."

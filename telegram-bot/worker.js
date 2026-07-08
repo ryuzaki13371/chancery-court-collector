@@ -20,6 +20,7 @@ const WORKFLOWS = {
   obituaries: "obituaries.yml",   // Task A: obituary -> property addresses
   taxsale:    "taxsale.yml",      // Task C: delinquent tax sale -> owners
   owners:     "owners.yml",       // Task D: uploaded addresses -> owner + mailing address
+  names:      "names.yml",        // Task F: uploaded/pasted names -> each one's address (reverse of owners)
   deeds:      "deeds.yml",        // Task E: Register of Deeds recent affidavit names+addresses
 };
 
@@ -121,6 +122,8 @@ async function onMessage(msg, env) {
     await trigger(env, "taxsale", chatId);
   } else if (cmd === "/owners") {
     await askForAddresses(env, chatId);
+  } else if (cmd === "/names") {
+    await askForNames(env, chatId);
   } else if (cmd === "/deeds") {
     await triggerDeeds(env, chatId);
   } else if (cmd === "/deedslogin") {
@@ -130,6 +133,8 @@ async function onMessage(msg, env) {
   } else if (cmd === "/stop") {
     await dispatch(env, "subscribe.yml", { chat_id: String(chatId), name: "", action: "remove" });
     await tg(env, "sendMessage", { chat_id: chatId, text: "🔕 You're unsubscribed from the weekly auto-send. Tap /start to rejoin." });
+  } else if (await maybeHandleNameList(env, msg)) {
+    // handled: names pasted straight into the chat after tapping 👤 Name → Address
   } else if (await maybeHandlePdfSelection(env, msg)) {
     // handled: it was a "3 7 12" / "all" reply picking PDFs from the last deeds list
   } else {
@@ -142,6 +147,8 @@ async function onCallback(cq, env) {
   const chatId = cq.message.chat.id;
   if (cq.data === "owners") {
     await askForAddresses(env, chatId);               // upload flow, not a one-tap trigger
+  } else if (cq.data === "names") {
+    await askForNames(env, chatId);                   // reverse: names -> addresses (upload/paste)
   } else if (cq.data === "deedslogin") {
     await askForDeedsLogin(env, chatId);              // 6th button: set up the deeds login
   } else if (cq.data === "howto") {
@@ -239,9 +246,25 @@ async function maybeHandlePdfSelection(env, msg) {
   return true;
 }
 
-// Task D is different from the other buttons: it needs the user to upload a file
-// of addresses first. Prompt for it; the uploaded document is handled by onDocument.
-function askForAddresses(env, chatId) {
+// Two of the buttons expect the user to send something next (an address file, or
+// a name list). We remember which one they tapped in the bot's memory (KV) for a
+// couple of hours, so the next upload/paste is routed to the right workflow.
+async function setMode(env, chatId, mode) {
+  if (!env.CREDS) return;
+  try { await env.CREDS.put("mode:" + chatId, mode, { expirationTtl: 7200 }); } catch (_) {}
+}
+async function getMode(env, chatId) {
+  if (!env.CREDS) return "";
+  try { return (await env.CREDS.get("mode:" + chatId)) || ""; } catch (_) { return ""; }
+}
+async function clearMode(env, chatId) {
+  if (!env.CREDS) return;
+  try { await env.CREDS.delete("mode:" + chatId); } catch (_) {}
+}
+
+// 🔎 Address → Owners: prompt for an address file (handled by onDocument).
+async function askForAddresses(env, chatId) {
+  await setMode(env, chatId, "addresses");
   return tg(env, "sendMessage", {
     chat_id: chatId,
     parse_mode: "HTML",
@@ -249,14 +272,65 @@ function askForAddresses(env, chatId) {
   });
 }
 
+// 👤 Name → Address (reverse): prompt for a NAME list — pasted or as a file.
+async function askForNames(env, chatId) {
+  await setMode(env, chatId, "names");
+  return tg(env, "sendMessage", {
+    chat_id: chatId,
+    parse_mode: "HTML",
+    text: "👤 <b>Name → Address</b>\nSend me a list of OWNER NAMES and I'll look up each one's address on the county's <b>free public</b> property site — and tell you <b>which names had an address</b>. This is how chancery-court case names get an address.\n\n<b>Two ways to send them:</b>\n• Just type them here, one per line — <code>Last, First</code> (e.g. <code>Smith, John</code>), or\n• Send a <b>.csv</b>/<b>.txt</b> file (your campaign file with LastName/FirstName columns works too).\n\nResults come back in your campaign format and save to your Google Sheet.",
+  });
+}
+
+// If the user tapped 👤 Name → Address and then TYPED names into the chat, run the
+// name lookup on that pasted text. Returns true if it handled the message.
+async function maybeHandleNameList(env, msg) {
+  const chatId = msg.chat.id;
+  if ((await getMode(env, chatId)) !== "names") return false;
+  const text = (msg.text || "").trim();
+  if (!text || text.startsWith("/") || !/[A-Za-z]/.test(text)) return false; // commands / number-replies aren't names
+  await clearMode(env, chatId);
+  if (text.length > 8000) {
+    await tg(env, "sendMessage", { chat_id: chatId, text: "That's a lot of names — please send them as a .csv or .txt file instead (tap 👤 Name → Address again, then attach the file)." });
+    return true;
+  }
+  await tg(env, "sendMessage", {
+    chat_id: chatId,
+    text: "⏳ Looking up an address for each name on the county property site… the spreadsheet lands here shortly. You can close Telegram.",
+  });
+  const resp = await dispatch(env, WORKFLOWS.names, { chat_id: String(chatId), names_text: text });
+  if (!resp.ok) {
+    await tg(env, "sendMessage", { chat_id: chatId, text: `⚠️ Couldn't start the lookup (GitHub returned ${resp.status}).` });
+  }
+  return true;
+}
+
 async function onDocument(msg, env) {
   const chatId = msg.chat.id;
   const doc = msg.document || {};
   const name = (doc.file_name || "").toLowerCase();
   if (!(name.endsWith(".csv") || name.endsWith(".txt"))) {
-    await tg(env, "sendMessage", { chat_id: chatId, parse_mode: "HTML", text: "Please send a <b>.csv</b> or <b>.txt</b> file with one property address per line." });
+    await tg(env, "sendMessage", { chat_id: chatId, parse_mode: "HTML", text: "Please send a <b>.csv</b> or <b>.txt</b> file (one item per line)." });
     return;
   }
+  const mode = await getMode(env, chatId);
+  await clearMode(env, chatId);
+  if (mode === "names") {
+    await tg(env, "sendMessage", {
+      chat_id: chatId,
+      text: "⏳ Got your names — looking up an address for each on the county property site… this can take a few minutes. The spreadsheet lands here when it's done. You can close Telegram.",
+    });
+    const resp = await dispatch(env, WORKFLOWS.names, {
+      chat_id: String(chatId),
+      file_id: doc.file_id,
+      file_name: doc.file_name || "names.csv",
+    });
+    if (!resp.ok) {
+      await tg(env, "sendMessage", { chat_id: chatId, text: `⚠️ Couldn't start the lookup (GitHub returned ${resp.status}). Check the bot's GH_TOKEN / GH_REPO.` });
+    }
+    return;
+  }
+  // default (and the "addresses" mode): Address → Owners
   await tg(env, "sendMessage", {
     chat_id: chatId,
     text: "⏳ Got your file — looking up owners + mailing addresses… this can take a few minutes (each address is looked up one by one). The spreadsheet lands here when it's done. You can close Telegram.",
@@ -293,6 +367,9 @@ const WELCOME = [
   "🔎 <b>Address → Owners</b>",
   "Upload your OWN list of property addresses (a .csv or .txt, one per line) and I'll return each property's owner name and MAILING address — in your mail-campaign format (LastName, FirstName, MiddleName, Address, City, State, ZipCode, Campaign).",
   "",
+  "👤 <b>Name → Address</b>",
+  "The reverse: give me a list of OWNER NAMES (last name first) and I'll look each one up on the county property site and return their address — flagging which names had one. This is how chancery-court case names get an address. Paste the names or send a file (your campaign CSV works too).",
+  "",
   "🏛️ <b>Register of Deeds → Affidavits</b>",
   "Recent affidavits (heirship/descent, loan-mod, etc.) from the Register of Deeds — party names + property address + parcel. Uses Steven's subscription login. Can also fetch the document PDFs (capped at 25 per run, slowly, to keep the account safe).",
   "",
@@ -321,6 +398,7 @@ function registerCommands(env) {
     { command: "obituaries", description: "Get obituary property addresses now" },
     { command: "taxsale",    description: "Get delinquent tax sale list + owners" },
     { command: "owners",     description: "Upload addresses → get owners + mailing addresses" },
+    { command: "names",      description: "Paste/upload names → get each one's address" },
     { command: "deeds",      description: "Register of Deeds → recent names + addresses" },
     { command: "deedssteps", description: "Register of Deeds: step-by-step guide" },
     { command: "setup",      description: "Set up your Register of Deeds login (one time)" },
@@ -340,6 +418,7 @@ function sendMenu(env, chatId) {
         [{ text: "🏠 Obituary → Addresses", callback_data: "obituaries" }],
         [{ text: "💰 Tax Sale → Owners",    callback_data: "taxsale" }],
         [{ text: "🔎 Address → Owners (upload)", callback_data: "owners" }],
+        [{ text: "👤 Name → Address (paste/upload)", callback_data: "names" }],
         [{ text: "🏛️ Register of Deeds → Affidavits", callback_data: "deeds" }],
         [{ text: "🔑 Set up Deeds Login", callback_data: "deedslogin" }],
         [{ text: "📖 How to use", callback_data: "howto" }],
@@ -363,6 +442,7 @@ const HOWTO = [
   "🏠 <b>Obituary → Addresses</b> — obituary names + a property address looked up for each. ~1 min.",
   "💰 <b>Tax Sale → Owners</b> — the delinquent tax-sale list with each owner looked up. ~5–7 min (it's ~140 lookups).",
   "🔎 <b>Address → Owners</b> — tap it, then SEND a .csv/.txt file of property addresses. It searches the county's <b>free public</b> property site (no login, nothing to get suspended) and sends back each owner's name + <b>mailing address</b> in your ready-to-use campaign format. Every result is also <b>added to your Google Sheet automatically</b> on each request — so your master list keeps growing, no copy-paste.",
+  "👤 <b>Name → Address</b> — the reverse. Tap it, then PASTE names (one per line, <i>Last, First</i>) or send a .csv/.txt file. It searches the same free public property site and returns each name's address, flagging which names had one — in your campaign format, and saved to your Google Sheet. This is how chancery-court case names get an address.",
   "🏛️ <b>Register of Deeds</b> — recent affidavits (heirship, loan-mod…): party names + property address + parcel. Needs the one-time login below.",
   "🔑 <b>Set up Deeds Login</b> — first time only (see below).",
   "",
